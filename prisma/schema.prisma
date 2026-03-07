@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             BigInt    @id                    // Telegram user ID
+  username       String?
+  firstName      String?
+  language       String    @default("uz")         // "uz" | "ru"
+  briefTime      String    @default("07:00")      // HH:MM Tashkent time
+  whoopConnected Boolean   @default(false)
+  whoopUserId    String?
+  createdAt      DateTime  @default(now())
+  lastActiveAt   DateTime  @default(now())
+
+  tokens         WhoopToken?
+  subscription   Subscription?
+  snapshots      DailySnapshot[]
+  oauthStates    OAuthState[]
+}
+
+model WhoopToken {
+  userId       BigInt   @id
+  accessToken  String   // AES-256-GCM encrypted
+  refreshToken String   // AES-256-GCM encrypted
+  expiresAt    DateTime
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OAuthState {
+  state     String   @id      // UUID
+  userId    BigInt
+  createdAt DateTime @default(now())
+  expiresAt DateTime           // createdAt + 10min
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  userId     BigInt    @id
+  status     String                      // "trial" | "active" | "expired"
+  trialStart DateTime
+  trialEnd   DateTime                    // trialStart + 14 days
+  paidUntil  DateTime?
+  chargeId   String?   @unique           // Telegram payment charge_id (idempotency)
+  updatedAt  DateTime  @updatedAt
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DailySnapshot {
+  userId          BigInt
+  date            DateTime  @db.Date
+
+  // Recovery
+  recoveryScore   Int?
+  hrv             Float?
+  rhr             Float?
+  spo2            Float?
+
+  // Sleep
+  sleepDuration   Int?      // minutes
+  sleepPerf       Float?
+  sleepEfficiency Float?
+  remMinutes      Int?
+  deepMinutes     Int?
+  lightMinutes    Int?
+  respiratoryRate Float?
+
+  // Strain
+  strainScore     Float?
+  calories        Int?
+
+  // On-demand query tracking
+  onDemandCount   Int       @default(0)
+
+  // Fetch state machine
+  fetchStatus     String    @default("PENDING")  // PENDING|FETCHING|READY|STALE|FAILED
+  fetchAttempts   Int       @default(0)
+  isStale         Boolean   @default(false)
+  woreDevice      Boolean   @default(true)
+
+  // Metadata
+  rawJson         Json?
+  fetchedAt       DateTime?
+  deliveredAt     DateTime?
+
+  @@id([userId, date])
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
