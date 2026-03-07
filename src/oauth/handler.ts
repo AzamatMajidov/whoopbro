@@ -4,6 +4,10 @@ import { Telegraf } from 'telegraf';
 import { db } from '../db/client';
 import { config } from '../config';
 import { encrypt } from '../utils/crypto';
+import { WhoopService } from '../services/whoop';
+import { deliverBrief } from '../scheduler/deliver';
+import { t, type Lang } from '../i18n';
+import { getUserLang } from '../i18n/getLang';
 
 const TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 
@@ -127,13 +131,54 @@ export function createOAuthRouter(bot: Telegraf): Router {
 
       // Notify user via Telegram
       try {
+        const lang = await getUserLang(userId);
         await bot.telegram.sendMessage(
           userId.toString(),
-          "✅ Whoop muvaffaqiyatli ulandi! 🎉\n\nHar kuni ertalab soat 07:00 da sog'liq hisobotingiz yuboriladi.\n\nSozlamalar uchun /settings",
+          t(lang, 'oauth_success_brief'),
         );
       } catch {
         // User may have blocked the bot
       }
+
+      // Fetch and deliver first brief immediately (async — don't block OAuth response)
+      setImmediate(async () => {
+        try {
+          const whoop = new WhoopService(db);
+          const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
+          const dateObj = new Date(`${today}T00:00:00Z`);
+          const dayData = await whoop.fetchDayData(userId, today);
+
+          const snapshot = await db.dailySnapshot.upsert({
+            where: { userId_date: { userId, date: dateObj } },
+            create: {
+              userId, date: dateObj,
+              recoveryScore: dayData.recovery.recoveryScore, hrv: dayData.recovery.hrv,
+              rhr: dayData.recovery.rhr, spo2: dayData.recovery.spo2,
+              sleepDuration: dayData.sleep.durationMinutes, sleepPerf: dayData.sleep.performancePct,
+              sleepEfficiency: dayData.sleep.efficiencyPct, remMinutes: dayData.sleep.remMinutes,
+              deepMinutes: dayData.sleep.deepMinutes, lightMinutes: dayData.sleep.lightMinutes,
+              respiratoryRate: dayData.sleep.respiratoryRate,
+              strainScore: dayData.strain.strainScore, calories: dayData.strain.calories,
+              woreDevice: dayData.woreDevice, fetchStatus: 'READY', fetchedAt: new Date(),
+            },
+            update: {
+              recoveryScore: dayData.recovery.recoveryScore, hrv: dayData.recovery.hrv,
+              rhr: dayData.recovery.rhr, spo2: dayData.recovery.spo2,
+              sleepDuration: dayData.sleep.durationMinutes, sleepPerf: dayData.sleep.performancePct,
+              sleepEfficiency: dayData.sleep.efficiencyPct, remMinutes: dayData.sleep.remMinutes,
+              deepMinutes: dayData.sleep.deepMinutes, lightMinutes: dayData.sleep.lightMinutes,
+              respiratoryRate: dayData.sleep.respiratoryRate,
+              strainScore: dayData.strain.strainScore, calories: dayData.strain.calories,
+              woreDevice: dayData.woreDevice, fetchStatus: 'READY', fetchedAt: new Date(), deliveredAt: null,
+            },
+          });
+
+          await deliverBrief(userId, snapshot, bot, whoop);
+        } catch (err) {
+          console.error('[oauth] first brief delivery failed:', err);
+          // Non-critical — user will get their brief tomorrow morning
+        }
+      });
 
       res.status(200).send(
         htmlPage(

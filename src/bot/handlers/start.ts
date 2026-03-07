@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Context, Markup } from 'telegraf';
 import { config } from '../../config';
 import { db } from '../../db/client';
+import { t, type Lang } from '../../i18n';
 
 export async function startHandler(ctx: Context) {
   const from = ctx.from;
@@ -26,10 +27,10 @@ export async function startHandler(ctx: Context) {
 
   // Check if already connected
   const user = await db.user.findUnique({ where: { id: userId } });
+  const lang: Lang = user?.language === 'ru' ? 'ru' : 'uz';
+
   if (user?.whoopConnected) {
-    await ctx.reply(
-      "Whoop hisobingiz allaqachon ulangan ✅\n\nSozlamalar uchun /settings, holatni ko'rish uchun /status",
-    );
+    await ctx.reply(t(lang, 'already_connected'));
     return;
   }
 
@@ -57,7 +58,7 @@ export async function startHandler(ctx: Context) {
     },
   });
 
-  const scopes = 'read:recovery read:sleep read:workout read:body_measurement offline';
+  const scopes = 'read:recovery read:sleep read:cycles read:workout read:profile offline';
   const oauthUrl =
     `https://api.prod.whoop.com/oauth/oauth2/auth` +
     `?client_id=${encodeURIComponent(config.WHOOP_CLIENT_ID)}` +
@@ -67,7 +68,7 @@ export async function startHandler(ctx: Context) {
     `&state=${encodeURIComponent(state)}`;
 
   await ctx.reply(
-    "🏋️ WhoopBro ga xush kelibsiz!\n\nHar kuni ertalab Whoop ma'lumotlaringiz asosida shaxsiy sog'liq tavsiyalari olasiz — o'zbek tilida.\n\nBoshlash uchun Whoop hisobingizni ulang 👇",
-    Markup.inlineKeyboard([Markup.button.url('🔗 Whoop Hisobimni Ulash', oauthUrl)]),
+    t(lang, 'welcome'),
+    Markup.inlineKeyboard([Markup.button.url(t(lang, 'connect_button'), oauthUrl)]),
   );
 }
