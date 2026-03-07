@@ -1,5 +1,7 @@
 import { config } from './config';
 import { db } from './db/client';
+import { createBot, startBot } from './bot';
+import { startOAuthServer } from './oauth/server';
 
 async function main() {
   console.log('🐣 WhoopBro starting...');
@@ -14,15 +16,26 @@ async function main() {
     process.exit(1);
   }
 
+  // Create and start bot
+  const bot = createBot();
+
+  // Start OAuth server (needs bot for sending Telegram messages)
+  startOAuthServer(bot);
+
+  // Start bot
+  await startBot(bot);
+
   // Graceful shutdown
   process.on('SIGTERM', async () => {
     console.log('🛑 SIGTERM received — shutting down...');
+    bot.stop('SIGTERM');
     await db.$disconnect();
     process.exit(0);
   });
 
   process.on('SIGINT', async () => {
     console.log('🛑 SIGINT received — shutting down...');
+    bot.stop('SIGINT');
     await db.$disconnect();
     process.exit(0);
   });
