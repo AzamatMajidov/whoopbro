@@ -2,6 +2,8 @@ import { config } from './config';
 import { db } from './db/client';
 import { createBot, startBot } from './bot';
 import { startOAuthServer } from './oauth/server';
+import { WhoopService } from './services/whoop';
+import { startScheduler } from './scheduler';
 
 async function main() {
   console.log('🐣 WhoopBro starting...');
@@ -16,13 +18,18 @@ async function main() {
     process.exit(1);
   }
 
+  // Create whoop service first (needed by bot and scheduler)
+  const whoop = new WhoopService(db);
+
   // Create and start bot
-  const bot = createBot();
+  const bot = createBot(whoop);
 
   // Start OAuth server (needs bot for sending Telegram messages)
   startOAuthServer(bot);
+  startScheduler(bot, whoop);
+  console.log('⏰ Scheduler started');
 
-  // Start bot
+  // Start bot (polling blocks in dev — must be last)
   await startBot(bot);
 
   // Graceful shutdown

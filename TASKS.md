@@ -44,7 +44,7 @@
    - `User` (id BigInt, username, firstName, language, briefTime, whoopConnected, whoopUserId, createdAt, lastActiveAt)
    - `WhoopToken` (userId, accessToken encrypted, refreshToken encrypted, expiresAt, updatedAt)
    - `OAuthState` (state UUID, userId, createdAt, expiresAt)
-   - `Subscription` (userId, status: trial/active/expired, trialStart, trialEnd, paidUntil, chargeId, updatedAt)
+   - `Subscription` (userId, status: trial/active/expired, trialStart, trialEnd, paidUntil, paymentRef, updatedAt)
    - `DailySnapshot` (composite PK: userId+date, all health fields, fetchStatus, fetchAttempts, isStale, woreDevice, rawJson, fetchedAt, deliveredAt)
 2. `prisma migrate dev --name init`
 3. `prisma generate`
@@ -311,21 +311,30 @@
 
 ## 💰 Week 3 — Monetization
 
+> **Payment strategy:**
+> - **Phase 1 (launch → ~50 users):** Manual p2p — Click/Payme card transfer. User pays → notifies bot → admin confirms via inline button. Zero fees, zero paperwork.
+> - **Phase 2 (50+ users):** Click or Payme merchant API — auto-confirmation via webhook. Same `activatePaid()` call, just triggered automatically.
+> - **Phase 3 (international):** Polar.sh or Stripe — when price justifies fees (~$8-10+/month).
+> 
+> Price: **50,000 UZS/month** (~$4). SubscriptionService is payment-provider agnostic — only the trigger changes between phases.
+
 ### T14 — SubscriptionService
-**Goal:** Core subscription logic — trial, access checks, expiry.
+**Goal:** Core subscription logic — trial, access checks, expiry. Payment-provider agnostic.
 
 **Steps:**
 1. Create `src/services/subscription.ts`:
    - `startTrial(userId)` — create subscription row: `status: 'trial', trialStart: now, trialEnd: now + 14d`
-   - `hasAccess(userId): Promise<boolean>` — check trial/paid status (see ARD §7.5), auto-expire if needed
+   - `hasAccess(userId): Promise<boolean>` — check trial/paid status, auto-expire if needed
    - `getStatus(userId): Promise<SubscriptionStatus>` — returns full status object for /status command
-   - `activatePaid(userId, chargeId): Promise<void>` — set status: 'active', paidUntil: now + 30d, store chargeId. Idempotent (check chargeId uniqueness first)
-   - `extendPaid(userId, chargeId): Promise<void>` — additive: paidUntil += 30d
-   - `handleRefund(userId): Promise<void>` — revert to expired
-2. Called from: T6 middleware (access check), T10 delivery, T17 payment handler
-3. Admin alert: if `activatePaid` fails after 3 retries → send Telegram to admin (userId 45118778)
+   - `activatePaid(userId, paymentRef?: string): Promise<void>` — set status: 'active', paidUntil: now + 30d, store paymentRef. Idempotent.
+   - `extendPaid(userId, paymentRef?: string): Promise<void>` — additive: paidUntil += 30d
+   - `expireSubscription(userId): Promise<void>` — revert to expired
+2. Called from: deliver.ts (access check), T17 admin confirmation handler
+3. Admin alert: if `activatePaid` fails → send Telegram to admin (userId 45118778)
 
-**Done when:** Unit-testable service, access logic works for all states.
+**Note:** `chargeId` field in schema renamed to `paymentRef` — generic enough for manual ref, Click order ID, or future Polar checkout ID.
+
+**Done when:** Service works for all states (trial/active/expired). `hasAccess` correctly gates content.
 
 ---
 
@@ -333,59 +342,85 @@
 **Goal:** Proactively warn users before trial expires.
 
 **Steps:**
-1. Create `src/scheduler/maintenance.ts` (or add to existing scheduler):
-   - Cron: run daily at 09:00 after briefs are delivered
+1. Create `src/scheduler/maintenance.ts`:
+   - Cron: daily 09:00 Tashkent
    - `sendTrialWarnings()`:
      - Find users where `subscription.status = 'trial'` AND `trialEnd` is in 1-2 days
-     - Day 2 remaining: send warning with [Obuna bo'lish] button
-     - Day 1 remaining: send urgent warning with [Obuna bo'lish] button
-     - Don't send if already sent today (track via `lastWarningAt` field or check `trialEnd - now`)
-2. Warning message copy (Uzbek):
-   - Day 2: "⏳ WhoopBro sinovidan 2 kun qoldi. To'liq hisobot va AI maslahatdan foydalanishni davom ettirish uchun obuna bo'ling."
+     - Day 2: send warning with [💳 Obuna bo'lish] button
+     - Day 1: send urgent warning with [💳 Obuna bo'lish] button
+   - `sendExpiryReminders()`:
+     - Find active subscribers where `paidUntil` is in 2 days → send renewal reminder
+2. Warning copy:
+   - Day 2: "⏳ WhoopBro sinovidan 2 kun qoldi. Uzilmaslik uchun obuna bo'ling."
    - Day 1: "⚠️ Ertaga sinoviniz tugaydi! Hisobotlaringiz to'xtatilishini xohlamasangiz, obuna bo'ling."
 
-**Done when:** Warning messages send at correct days with subscribe button.
+**Done when:** Warnings send at correct days with subscribe button.
 
 ---
 
-### T16 — Paywall Message + Invoice
-**Goal:** Expired users see their recovery score but get a paywall for the full brief.
+### T16 — Subscribe Flow (P2P Payment Instructions)
+**Goal:** User taps subscribe → gets payment instructions → notifies bot → admin confirms.
 
 **Steps:**
-1. In `deliverBrief()` (T10): if `!hasAccess` → fetch just recovery score → send paywall message
-2. Paywall message: see ARD §7.2 copy (Uzbek)
-3. `[💳 Obuna bo'lish — 400 ⭐/oy]` button → triggers `subscribe` callback
-4. Create `src/bot/handlers/payment.ts`:
-   - `handleSubscribeCallback(ctx)`:
-     - `ctx.replyWithInvoice({...})` — Telegram Stars invoice
-     - title: "WhoopBro Pro"
-     - description: "Oylik obuna — to'liq AI hisobot, haftalik tahlil, savol berish (10/kun)"
-     - currency: "XTR" (Telegram Stars)
-     - prices: `[{ label: "1 oy", amount: 400 }]`
-     - payload: `subscribe:${userId}`
+1. Create `src/bot/handlers/payment.ts`:
+   - `sendPaymentInstructions(ctx)`:
+     ```
+     💳 WhoopBro Pro — 50,000 UZS/oy
 
-**Done when:** Expired user sees paywall with real recovery score, tapping subscribe shows Stars invoice.
+     To'lov usullari:
+     • Click: 8600 XXXX XXXX XXXX (karta egasi: env dan)
+     • Payme: +998 99 869 6682
+
+     To'lovni amalga oshirgach, quyidagi tugmani bosing:
+     ```
+     Buttons: `[✅ To'ladim] [❌ Bekor qilish]`
+   - Card numbers from env: `CLICK_CARD`, `PAYME_PHONE`
+   - On `to'ladim` callback: send to admin (ADMIN_TELEGRAM_ID) a notification:
+     ```
+     💰 Yangi to'lov so'rovi
+     👤 {firstName} (@{username})
+     🆔 {userId}
+     📅 {date}
+     ```
+     Buttons: `[✅ Faollashtirish] [❌ Rad etish]`
+   - Reply to user: "✅ So'rovingiz qabul qilindi. Tez orada faollashtiriladi!"
+2. On `paywall` → subscribe button → `sendPaymentInstructions`
+3. Add `CLICK_CARD` and `PAYME_PHONE` to config + .env.example
+
+**Phase 2 note:** When Click/Payme merchant is ready, replace `sendPaymentInstructions` with a payment link. Admin confirmation flow removed — webhook calls `activatePaid` directly.
+
+**Done when:** Full p2p flow works — user gets instructions, admin gets notification with action buttons.
 
 ---
 
-### T17 — Payment Handlers (pre_checkout + successful_payment)
-**Goal:** Process Telegram Stars payments, activate subscription.
+### T17 — Admin Confirmation Handler
+**Goal:** Admin taps Faollashtirish/Rad etish → subscription activated/rejected.
 
 **Steps:**
 1. In `src/bot/handlers/payment.ts`:
-   - `handlePreCheckout(ctx)`:
-     - Validate payload format (`subscribe:${userId}`)
-     - Confirm user exists in DB
-     - Answer OK: `ctx.answerPreCheckoutQuery(true)`
-     - On any validation fail: `ctx.answerPreCheckoutQuery(false, 'Xatolik yuz berdi')`
-   - `handleSuccessfulPayment(ctx)`:
-     - Extract `charge_id` from payment info
-     - Call `SubscriptionService.activatePaid(userId, chargeId)` or `extendPaid` if already active
-     - Send confirmation: "✅ Obuna faollashtirildi! 30 kun davomida to'liq kirish mavjud 💪"
-     - If user missed a brief today (deliveredAt IS NULL for today's snapshot and it's past their briefTime) → deliver brief immediately
-2. Register both handlers in bot index
+   - Handle callback `admin_activate:{userId}`:
+     - Call `SubscriptionService.activatePaid(userId, 'manual')`
+     - Edit admin message: "✅ Faollashtirildi — {userId}"
+     - Notify user: "✅ Obuna faollashtirildi! 30 kun davomida to'liq kirish mavjud 💪\n\nHisobot har kuni soat {briefTime} da keladi."
+     - If user missed today's brief (deliveredAt IS NULL, past briefTime) → deliver immediately
+   - Handle callback `admin_reject:{userId}`:
+     - Edit admin message: "❌ Rad etildi — {userId}"
+     - Notify user: "❌ To'lov tasdiqlanmadi. Muammo bo'lsa, admin bilan bog'laning."
+   - `/admin activate {userId}` command — manual fallback, same as button
+   - `/admin stats` command:
+     ```
+     📊 WhoopBro statistika
+     👥 Jami foydalanuvchilar: X
+     🔗 Whoop ulangan: X
+     🎯 Sinov davri: X
+     💳 Faol obuna: X
+     📅 Bugun yuborilgan: X
+     ```
+2. Register admin callbacks in bot index (only respond if ctx.from.id === ADMIN_TELEGRAM_ID)
 
-**Done when:** Full payment flow works in test mode with Telegram Stars.
+**Done when:** Admin can activate/reject from Telegram, `/admin stats` shows live numbers.
+
+---
 
 ---
 
@@ -529,7 +564,7 @@
 6. Test on-demand query with real question
 7. Test `/disconnect` — verify data wiped
 8. Reconnect, set up 14-day trial, verify trial warnings fire
-9. Test Stars payment in test mode (Telegram has test Stars payment environment)
+9. Test p2p subscribe flow — tap Obuna, pay, confirm as admin, verify activation
 10. Test paywall message with manually expired subscription
 
 **Done when:** All core flows verified with real data.
@@ -576,7 +611,8 @@
 | Blocker | What's needed | When needed |
 |---|---|---|
 | Whoop developer app | Register at developer.whoop.com, create app, get `client_id` + `client_secret` | Before T3/T4 |
-| Telegram Stars payments | Bot must be approved for Stars payments — check in BotFather | Before T16 |
+| Click/Payme card numbers | Add CLICK_CARD + PAYME_PHONE to .env before T16 | Before T16 |
+| Click merchant account (Phase 2) | Apply at business.click.uz when 50+ paying users | Post-launch |
 | Domain `whoopbro.uz` | Register at ahost.uz (~27,000 UZS/year) | Week 4 only |
 | Gemini API key | Already have one? Check `.env`. If not — aistudio.google.com | Before T7 |
 | PostgreSQL on VPS | Already running for babycars-bot? Create `whoopbro` DB + user | Before T2 |
@@ -587,7 +623,7 @@
 
 | Week | Tasks | Status |
 |---|---|---|
-| Week 1 | T1–T6 | ⬜ Not started |
-| Week 2 | T7–T13 | ⬜ Not started |
-| Week 3 | T14–T18 | ⬜ Not started |
+| Week 1 | T1–T6 | ✅ Done (2026-03-07) |
+| Week 2 | T7–T13 | ✅ Done (2026-03-07) |
+| Week 3 | T14–T18 | ✅ Done (2026-03-08) |
 | Week 4 | T19–T25 | ⬜ Not started |

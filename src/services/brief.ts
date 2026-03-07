@@ -53,7 +53,7 @@ export function composeBrief(data: DayData, aiText: string, isStale: boolean, la
     lines.push(`${recoveryEmoji(score)} ${t(lang, 'brief_recovery_label')}: ${score}%`);
   }
   if (data.recovery.hrv !== null) {
-    const hrvPart = `\uD83D\uDC93 ${t(lang, 'brief_hrv_label')}: ${data.recovery.hrv}ms`;
+    const hrvPart = `\uD83D\uDC93 ${t(lang, 'brief_hrv_label')}: ${Number(data.recovery.hrv).toFixed(1)} ms`;
     if (data.recovery.rhr !== null) {
       lines.push(`${hrvPart}  |  \u2764\uFE0F ${t(lang, 'brief_rhr_label')}: ${data.recovery.rhr} ${t(lang, 'urish_min')}`);
     } else {
@@ -63,7 +63,7 @@ export function composeBrief(data: DayData, aiText: string, isStale: boolean, la
     lines.push(`\u2764\uFE0F ${t(lang, 'brief_rhr_label')}: ${data.recovery.rhr} ${t(lang, 'urish_min')}`);
   }
   if (data.recovery.spo2 !== null) {
-    lines.push(`\uD83E\uDEC1 SpO\u2082: ${data.recovery.spo2}%`);
+    lines.push(`\uD83E\uDEC1 SpO\u2082: ${Number(data.recovery.spo2).toFixed(1)}%`);
   }
 
   // Sleep block
@@ -119,7 +119,7 @@ export function composeFallbackBrief(data: DayData, isStale: boolean, lang: Lang
     lines.push(`${recoveryEmoji(score)} ${t(lang, 'brief_recovery_label')}: ${score}%`);
   }
   if (data.recovery.hrv !== null) {
-    const hrvPart = `\uD83D\uDC93 ${t(lang, 'brief_hrv_label')}: ${data.recovery.hrv}ms`;
+    const hrvPart = `\uD83D\uDC93 ${t(lang, 'brief_hrv_label')}: ${Number(data.recovery.hrv).toFixed(1)} ms`;
     if (data.recovery.rhr !== null) {
       lines.push(`${hrvPart}  |  \u2764\uFE0F ${t(lang, 'brief_rhr_label')}: ${data.recovery.rhr} ${t(lang, 'urish_min')}`);
     } else {
@@ -129,7 +129,7 @@ export function composeFallbackBrief(data: DayData, isStale: boolean, lang: Lang
     lines.push(`\u2764\uFE0F ${t(lang, 'brief_rhr_label')}: ${data.recovery.rhr} ${t(lang, 'urish_min')}`);
   }
   if (data.recovery.spo2 !== null) {
-    lines.push(`\uD83E\uDEC1 SpO\u2082: ${data.recovery.spo2}%`);
+    lines.push(`\uD83E\uDEC1 SpO\u2082: ${Number(data.recovery.spo2).toFixed(1)}%`);
   }
 
   // Sleep block
@@ -180,35 +180,39 @@ export function composeFullDetail(data: DayData, lang: Lang = 'uz'): string {
 
   // Recovery
   lines.push('');
-  lines.push(`\u2500\u2500 ${t(lang, 'detail_recovery')} \u2500\u2500`);
+  lines.push(`📌 ${t(lang, 'detail_recovery').toUpperCase()}`);
+  lines.push('');
   if (data.recovery.recoveryScore !== null) lines.push(`${recoveryEmoji(data.recovery.recoveryScore)} ${t(lang, 'brief_recovery_label')}: ${data.recovery.recoveryScore}%`);
-  if (data.recovery.hrv !== null) lines.push(`\uD83D\uDC93 ${t(lang, 'brief_hrv_label')}: ${data.recovery.hrv}ms`);
-  if (data.recovery.rhr !== null) lines.push(`\u2764\uFE0F ${t(lang, 'brief_rhr_label')}: ${data.recovery.rhr} ${t(lang, 'urish_min')}`);
-  if (data.recovery.spo2 !== null) lines.push(`\uD83E\uDEC1 SpO\u2082: ${data.recovery.spo2}%`);
+  if (data.recovery.hrv !== null) lines.push(`💓 ${t(lang, 'brief_hrv_label')}: ${Number(data.recovery.hrv).toFixed(1)} ms`);
+  if (data.recovery.rhr !== null) lines.push(`❤️ ${t(lang, 'brief_rhr_label')}: ${data.recovery.rhr} ${t(lang, 'urish_min')}`);
+  if (data.recovery.spo2 !== null) lines.push(`🫁 SpO₂: ${Number(data.recovery.spo2).toFixed(1)}%`);
 
   // Sleep
   lines.push('');
-  lines.push(`\u2500\u2500 ${t(lang, 'detail_sleep')} \u2500\u2500`);
-  if (data.sleep.durationMinutes !== null) lines.push(`\uD83D\uDE34 ${t(lang, 'detail_duration')}: ${formatDuration(data.sleep.durationMinutes, lang)}`);
-  if (data.sleep.performancePct !== null) lines.push(`\uD83D\uDCC8 ${t(lang, 'detail_efficiency')}: ${data.sleep.performancePct}%`);
-  if (data.sleep.efficiencyPct !== null) lines.push(`\u26A1 ${t(lang, 'detail_effectiveness')}: ${Math.round(data.sleep.efficiencyPct)}%`);
-  if (data.sleep.remMinutes !== null) lines.push(`\uD83E\uDDE0 ${t(lang, 'brief_rem_label')}: ${data.sleep.remMinutes} ${t(lang, 'daqiqa')}`);
-  if (data.sleep.deepMinutes !== null) lines.push(`\uD83D\uDD35 ${t(lang, 'brief_deep_label')}: ${data.sleep.deepMinutes} ${t(lang, 'daqiqa')}`);
-  if (data.sleep.lightMinutes !== null) lines.push(`\uD83D\uDCA4 ${t(lang, 'brief_light_label')}: ${data.sleep.lightMinutes} ${t(lang, 'daqiqa')}`);
-  if (data.sleep.respiratoryRate !== null) lines.push(`\uD83E\uDEC1 ${t(lang, 'detail_respiratory')}: ${data.sleep.respiratoryRate} ${t(lang, 'nafas_min')}`);
+  lines.push(`📌 ${t(lang, 'detail_sleep').toUpperCase()}`);
+  lines.push('');
+  if (data.sleep.durationMinutes !== null) lines.push(`😴 ${t(lang, 'detail_duration')}: ${formatDuration(data.sleep.durationMinutes, lang)}`);
+  if (data.sleep.performancePct !== null) lines.push(`📈 ${t(lang, 'detail_efficiency')}: ${data.sleep.performancePct}%`);
+  if (data.sleep.efficiencyPct !== null) lines.push(`⚡ ${t(lang, 'detail_effectiveness')}: ${Math.round(data.sleep.efficiencyPct)}%`);
+  if (data.sleep.remMinutes !== null) lines.push(`🧠 ${t(lang, 'brief_rem_label')}: ${data.sleep.remMinutes} ${t(lang, 'daqiqa')}`);
+  if (data.sleep.deepMinutes !== null) lines.push(`🔵 ${t(lang, 'brief_deep_label')}: ${data.sleep.deepMinutes} ${t(lang, 'daqiqa')}`);
+  if (data.sleep.lightMinutes !== null) lines.push(`💤 ${t(lang, 'brief_light_label')}: ${data.sleep.lightMinutes} ${t(lang, 'daqiqa')}`);
+  if (data.sleep.respiratoryRate !== null) lines.push(`🫁 ${t(lang, 'detail_respiratory')}: ${Number(data.sleep.respiratoryRate).toFixed(1)} ${t(lang, 'nafas_min')}`);
 
   // Strain
   lines.push('');
-  lines.push(`\u2500\u2500 ${t(lang, 'detail_strain')} \u2500\u2500`);
-  if (data.strain.strainScore !== null) lines.push(`\uD83D\uDD25 ${t(lang, 'detail_strain_label')}: ${data.strain.strainScore}`);
-  if (data.strain.calories !== null) lines.push(`\uD83D\uDD0B ${t(lang, 'detail_calories')}: ${data.strain.calories} ${t(lang, 'kkal')}`);
+  lines.push(`📌 ${t(lang, 'detail_strain').toUpperCase()}`);
+  lines.push('');
+  if (data.strain.strainScore !== null) lines.push(`🔥 ${t(lang, 'detail_strain_label')}: ${Number(data.strain.strainScore).toFixed(1)}`);
+  if (data.strain.calories !== null) lines.push(`🔋 ${t(lang, 'detail_calories')}: ${data.strain.calories} ${t(lang, 'kkal')}`);
 
   // Workouts
   if (data.workouts.length > 0) {
     lines.push('');
-    lines.push(`\u2500\u2500 ${t(lang, 'detail_workouts')} \u2500\u2500`);
+    lines.push(`📌 ${t(lang, 'detail_workouts').toUpperCase()}`);
+  lines.push('');
     for (const w of data.workouts) {
-      lines.push(`\uD83C\uDFCB\uFE0F ${w.sport} \u2014 ${w.durationMinutes} ${t(lang, 'daqiqa')} (${t(lang, 'detail_strain').toLowerCase()}: ${w.strainScore})`);
+      lines.push(`🏋️ ${w.sport} — ${w.durationMinutes} ${t(lang, 'daqiqa')} (${t(lang, 'detail_strain').toLowerCase()}: ${Number(w.strainScore).toFixed(1)})`);
     }
   }
 

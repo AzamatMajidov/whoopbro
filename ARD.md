@@ -382,7 +382,7 @@ model Subscription {
   trialStart      DateTime
   trialEnd        DateTime      // trialStart + 14 days
   paidUntil       DateTime?
-  chargeId        String?       // Telegram payment charge_id
+  paymentRef      String?       // Payment reference (manual note, Click order ID, etc.)
   updatedAt       DateTime      @updatedAt
   user            User          @relation(fields: [userId], references: [id])
 }
@@ -447,29 +447,34 @@ obuna bo'ling — oyiga atigi 400 ⭐
 [💳 Obuna bo'lish — 400 ⭐/oy]
 ```
 
-### 7.3 Payment Flow
+### 7.3 Payment Flow (Phase 1 — Manual P2P)
 
 ```
-User taps [Obuna bo'lish]
-  → bot.sendInvoice (Telegram Stars, 400 XTR)
-  → User pays
-  → pre_checkout_query → answer OK
-  → successful_payment handler:
+User taps [💳 Obuna bo'lish]
+  → Bot shows Click card number + [✅ To'ladim] button
+  → User pays via Click, taps To'ladim
+  → Admin (userId 45118778) receives Telegram notification:
+       "💰 Yangi to'lov so'rovi — {name} {userId}"
+       [✅ Faollashtirish] [❌ Rad etish]
+  → Admin taps Faollashtirish:
        subscription.status = 'active'
        subscription.paidUntil = NOW() + 30 days
-       subscription.chargeId = charge_id
-  → Confirmation message + immediate brief if missed
+       subscription.paymentRef = 'manual-p2p'
+  → User notified + immediate brief if missed today
 ```
+
+**Phase 2 (50+ users):** Click/Payme merchant API webhook replaces admin button — same `activatePaid()` call, triggered automatically.
+
+**Phase 3 (international, $8-10+/month):** Polar.sh or Stripe.
 
 ### 7.4 Payment Edge Cases
 
 | Case | Handling |
 |---|---|
-| User pays but DB update fails | Idempotent: check chargeId uniqueness. Log failed update, retry 3x. Alert admin. |
-| User requests refund via Telegram | Telegram handles Stars refunds. On refund event: revert to expired status. |
-| User pays multiple times | Second payment extends paidUntil by 30 more days (additive, not reset) |
-| Stars exchange rate changes | Price in Stars is fixed (400). Dollar value may fluctuate — acceptable. |
-| pre_checkout fails | Return error message explaining why. User's Stars not charged until we OK it. |
+| User pays but admin doesn't confirm | User can re-tap To'ladim; admin gets another notification |
+| User pays but DB update fails | Log failed update, retry 3x. Alert admin. |
+| User pays multiple times | Second activation extends paidUntil by 30 more days (additive) |
+| Admin rejects by mistake | `/admin activate {userId}` command as manual override |
 
 ### 7.5 Access Check
 

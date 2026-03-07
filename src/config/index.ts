@@ -17,6 +17,7 @@ const configSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   ADMIN_TELEGRAM_ID: z.coerce.number().default(45118778),
+  CLICK_CARD: z.string().default('8600 XXXX XXXX XXXX'),
 });
 
 const parsed = configSchema.safeParse(process.env);

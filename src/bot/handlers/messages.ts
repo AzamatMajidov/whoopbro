@@ -249,14 +249,28 @@ export async function handleCallbackQuery(ctx: Context, whoop: WhoopService): Pr
       const userId = BigInt(from.id);
       const today = getTashkentToday();
       const dateObj = new Date(`${today}T00:00:00Z`);
-      const snapshot = await db.dailySnapshot.findUnique({
+
+      // Try today first, fall back to most recent ready snapshot
+      let snapshot = await db.dailySnapshot.findUnique({
         where: { userId_date: { userId, date: dateObj } },
       });
+
+      let isYesterday = false;
+      if (!snapshot || snapshot.fetchStatus === 'PENDING' || snapshot.fetchStatus === 'FETCHING') {
+        snapshot = await db.dailySnapshot.findFirst({
+          where: { userId, fetchStatus: { in: ['READY', 'STALE'] } },
+          orderBy: { date: 'desc' },
+        });
+        isYesterday = true;
+      }
 
       if (snapshot) {
         const dayData = snapshotToDayData(snapshot);
         const detail = composeFullDetail(dayData, lang);
-        await ctx.reply(detail, mainKeyboard(lang));
+        const prefix = isYesterday
+          ? (lang === 'ru' ? '📅 Данные за вчера:\n\n' : '📅 Kechagi ma\'lumotlar:\n\n')
+          : '';
+        await ctx.reply(prefix + detail, mainKeyboard(lang));
       } else {
         await ctx.reply(t(lang, 'query_no_data'), mainKeyboard(lang));
       }

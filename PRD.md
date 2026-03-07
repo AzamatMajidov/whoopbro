@@ -166,8 +166,9 @@ AI prompt includes data + these rules → generates natural language advice in U
 - On-demand queries (10/day)
 
 ### Payment:
-- Telegram Stars (frictionless, no card needed)
-- Possibly Payme/Click in v2
+- **Phase 1 (launch):** Manual p2p via Click card. User taps "To'ladim" → admin confirms via Telegram inline button. Zero fees.
+- **Phase 2 (50+ users):** Click or Payme merchant API — automatic webhook confirmation
+- **Phase 3 (international):** Polar.sh or Stripe (~$8-10+/month price point)
 
 ### Pricing rationale:
 - Whoop users spend $30+/month on the device — $4 is an easy yes
@@ -268,7 +269,7 @@ User taps "❓ Savol berish" or sends message:
 |---|---|
 | 1 | Whoop OAuth + data fetch + DB schema |
 | 2 | Daily brief generation (UZ) + AI coaching engine |
-| 3 | Payments (Telegram Stars) + subscription logic |
+| 3 | P2P payments (Click card) + subscription logic + uz/ru i18n + reply keyboard |
 | 4 | Testing + polish + launch to Whoop UZ community |
 
 **Target launch:** 4 weeks from kickoff
