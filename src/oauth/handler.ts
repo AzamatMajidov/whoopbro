@@ -8,6 +8,7 @@ import { WhoopService } from '../services/whoop';
 import { deliverBrief } from '../scheduler/deliver';
 import { t, type Lang } from '../i18n';
 import { getUserLang } from '../i18n/getLang';
+import { mainKeyboard } from '../bot/keyboard';
 
 const TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 
@@ -135,6 +136,7 @@ export function createOAuthRouter(bot: Telegraf): Router {
         await bot.telegram.sendMessage(
           userId.toString(),
           t(lang, 'oauth_success_brief'),
+          mainKeyboard(lang),
         );
       } catch {
         // User may have blocked the bot

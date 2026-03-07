@@ -3,6 +3,7 @@ import { Context, Markup } from 'telegraf';
 import { config } from '../../config';
 import { db } from '../../db/client';
 import { t, type Lang } from '../../i18n';
+import { mainKeyboard } from '../keyboard';
 
 export async function startHandler(ctx: Context) {
   const from = ctx.from;
@@ -30,7 +31,7 @@ export async function startHandler(ctx: Context) {
   const lang: Lang = user?.language === 'ru' ? 'ru' : 'uz';
 
   if (user?.whoopConnected) {
-    await ctx.reply(t(lang, 'already_connected'));
+    await ctx.reply(t(lang, 'already_connected'), mainKeyboard(lang));
     return;
   }
 

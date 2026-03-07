@@ -5,6 +5,7 @@ import { getStatus } from '../../services/subscription';
 import { expireSubscription } from '../../services/subscription';
 import { t, type Lang } from '../../i18n';
 import { getUserLang } from '../../i18n/getLang';
+import { mainKeyboard } from '../keyboard';
 
 // In-memory state for brief time change flow
 const awaitingBriefTime = new Set<number>();
@@ -22,7 +23,7 @@ export function registerSettingsHandlers(bot: Telegraf): void {
     if (!ctx.from) return;
     awaitingBriefTime.add(ctx.from.id);
     const lang = await getUserLang(BigInt(ctx.from.id));
-    await ctx.reply(t(lang, 'time_prompt'));
+    await ctx.reply(t(lang, 'time_prompt'), mainKeyboard(lang));
   });
 
   bot.action('settings_lang', async (ctx) => {
@@ -109,7 +110,7 @@ export async function handleBriefTimeInput(ctx: Context): Promise<void> {
   // Validate HH:MM format
   const match = text.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) {
-    await ctx.reply(t(lang, 'time_invalid_format'));
+    await ctx.reply(t(lang, 'time_invalid_format'), mainKeyboard(lang));
     return;
   }
 
@@ -117,7 +118,7 @@ export async function handleBriefTimeInput(ctx: Context): Promise<void> {
   const minutes = parseInt(match[2], 10);
 
   if (hours < 5 || hours > 22 || (hours === 5 && minutes < 30) || minutes >= 60) {
-    await ctx.reply(t(lang, 'time_out_of_range'));
+    await ctx.reply(t(lang, 'time_out_of_range'), mainKeyboard(lang));
     return;
   }
 
@@ -128,10 +129,10 @@ export async function handleBriefTimeInput(ctx: Context): Promise<void> {
     data: { briefTime: timeStr },
   });
 
-  await ctx.reply(t(lang, 'time_saved', timeStr));
+  await ctx.reply(t(lang, 'time_saved', timeStr), mainKeyboard(lang));
 }
 
-async function settingsHandler(ctx: Context): Promise<void> {
+export async function settingsHandler(ctx: Context): Promise<void> {
   const from = ctx.from;
   if (!from) return;
   const userId = BigInt(from.id);
@@ -164,7 +165,7 @@ async function settingsHandler(ctx: Context): Promise<void> {
   });
 }
 
-async function statusHandler(ctx: Context): Promise<void> {
+export async function statusHandler(ctx: Context): Promise<void> {
   const from = ctx.from;
   if (!from) return;
   const userId = BigInt(from.id);
@@ -193,7 +194,7 @@ async function statusHandler(ctx: Context): Promise<void> {
 \uD83D\uDCC5 ${t(lang, 'status_last_brief')}: ${lastDelivery}
 \u23F0 ${t(lang, 'status_brief_time')}: ${user.briefTime}`;
 
-  await ctx.reply(text);
+  await ctx.reply(text, mainKeyboard(lang));
 }
 
 async function disconnectHandler(ctx: Context): Promise<void> {
@@ -205,7 +206,7 @@ async function disconnectHandler(ctx: Context): Promise<void> {
   const lang: Lang = user?.language === 'ru' ? 'ru' : 'uz';
 
   if (!user?.whoopConnected) {
-    await ctx.reply(t(lang, 'disconnect_not_connected'));
+    await ctx.reply(t(lang, 'disconnect_not_connected'), mainKeyboard(lang));
     return;
   }
 
@@ -227,7 +228,7 @@ function langHandler(lang: string) {
     if (!from) return;
     await db.user.update({ where: { id: BigInt(from.id) }, data: { language: lang } });
     const l = lang as Lang;
-    await ctx.reply(t(l, lang === 'ru' ? 'lang_changed_ru' : 'lang_changed_uz'));
+    await ctx.reply(t(l, lang === 'ru' ? 'lang_changed_ru' : 'lang_changed_uz'), mainKeyboard(l));
   };
 }
 

@@ -9,6 +9,9 @@ import { composePaywall, composeFullDetail } from '../../services/brief';
 import { DayData } from '../../types/whoop';
 import { t, type Lang } from '../../i18n';
 import { getUserLang } from '../../i18n/getLang';
+import { mainKeyboard } from '../keyboard';
+import { statusHandler, settingsHandler } from './settings';
+import { sendPaymentInstructions } from './payment';
 
 // In-memory flag for awaiting query
 const awaitingQuery = new Map<number, boolean>();
@@ -55,6 +58,31 @@ function getTashkentToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
 }
 
+const MENU_BUTTONS_UZ = ['📊 Holat', '⚙️ Sozlamalar', '💳 Obuna', '❓ Yordam'];
+const MENU_BUTTONS_RU = ['📊 Статус', '⚙️ Настройки', '💳 Подписка', '❓ Помощь'];
+const ALL_MENU_BUTTONS = [...MENU_BUTTONS_UZ, ...MENU_BUTTONS_RU];
+
+async function handleMenuButton(ctx: Context, text: string): Promise<void> {
+  const userId = BigInt(ctx.from!.id);
+  const lang = await getUserLang(userId);
+
+  if (text === '📊 Holat' || text === '📊 Статус') {
+    return statusHandler(ctx);
+  }
+  if (text === '⚙️ Sozlamalar' || text === '⚙️ Настройки') {
+    return settingsHandler(ctx);
+  }
+  if (text === '💳 Obuna' || text === '💳 Подписка') {
+    return sendPaymentInstructions(ctx);
+  }
+  if (text === '❓ Yordam' || text === '❓ Помощь') {
+    const msg = lang === 'ru'
+      ? 'ℹ️ WhoopBro — ежедневные отчёты о здоровье на основе данных Whoop.\n\n📊 Статус — ваша подписка\n⚙️ Настройки — время, язык, Whoop\n💳 Подписка — оформить доступ\n\nПо вопросам: @azamajidov'
+      : "ℹ️ WhoopBro — Whoop ma'lumotlari asosida kunlik sog'liq hisobotlari.\n\n📊 Holat — obuna holatingiz\n⚙️ Sozlamalar — vaqt, til, Whoop\n💳 Obuna — obuna bo'lish\n\nSavollar uchun: @azamajidov";
+    await ctx.reply(msg, mainKeyboard(lang));
+  }
+}
+
 export async function handleTextMessage(ctx: Context, whoop: WhoopService): Promise<void> {
   try {
     const from = ctx.from;
@@ -62,6 +90,11 @@ export async function handleTextMessage(ctx: Context, whoop: WhoopService): Prom
     const userId = BigInt(from.id);
     const messageText = (ctx.message as any)?.text;
     if (!messageText) return;
+
+    // Reply keyboard button routing
+    if (ALL_MENU_BUTTONS.includes(messageText)) {
+      return handleMenuButton(ctx, messageText);
+    }
 
     const lang = await getUserLang(userId);
 
@@ -90,7 +123,7 @@ export async function handleTextMessage(ctx: Context, whoop: WhoopService): Prom
 
     // Check on-demand limit
     if (snapshot && snapshot.onDemandCount >= 10) {
-      await ctx.reply(t(lang, 'query_limit'));
+      await ctx.reply(t(lang, 'query_limit'), mainKeyboard(lang));
       return;
     }
 
@@ -173,7 +206,7 @@ export async function handleTextMessage(ctx: Context, whoop: WhoopService): Prom
     const result = await Promise.race([generatePromise, timeoutPromise]);
     const aiText = result.response.text().trim();
 
-    await ctx.reply(aiText);
+    await ctx.reply(aiText, mainKeyboard(lang));
 
     // Increment onDemandCount
     await db.dailySnapshot.upsert({
@@ -190,7 +223,7 @@ export async function handleTextMessage(ctx: Context, whoop: WhoopService): Prom
     });
   } catch {
     const lang = ctx.from ? await getUserLang(BigInt(ctx.from.id)).catch(() => 'uz' as Lang) : 'uz' as Lang;
-    await ctx.reply(t(lang, 'query_error'));
+    await ctx.reply(t(lang, 'query_error'), mainKeyboard(lang));
   }
 }
 
@@ -208,7 +241,7 @@ export async function handleCallbackQuery(ctx: Context, whoop: WhoopService): Pr
 
     if (data === 'ask') {
       awaitingQuery.set(from.id, true);
-      await ctx.reply(t(lang, 'query_ask_prompt'));
+      await ctx.reply(t(lang, 'query_ask_prompt'), mainKeyboard(lang));
       return;
     }
 
@@ -223,9 +256,9 @@ export async function handleCallbackQuery(ctx: Context, whoop: WhoopService): Pr
       if (snapshot) {
         const dayData = snapshotToDayData(snapshot);
         const detail = composeFullDetail(dayData, lang);
-        await ctx.reply(detail);
+        await ctx.reply(detail, mainKeyboard(lang));
       } else {
-        await ctx.reply(t(lang, 'query_no_data'));
+        await ctx.reply(t(lang, 'query_no_data'), mainKeyboard(lang));
       }
       return;
     }

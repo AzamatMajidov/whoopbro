@@ -7,6 +7,7 @@ import { deliverBrief } from '../../scheduler/deliver';
 import { WhoopService } from '../../services/whoop';
 import { t, type Lang } from '../../i18n';
 import { getUserLang } from '../../i18n/getLang';
+import { mainKeyboard } from '../keyboard';
 
 export async function sendPaymentInstructions(ctx: Context): Promise<void> {
   const lang = ctx.from ? await getUserLang(BigInt(ctx.from.id)) : 'uz' as Lang;
@@ -67,13 +68,13 @@ export function registerPaymentCallbacks(bot: Telegraf, whoop: WhoopService): vo
       console.error('[payment] admin notify failed:', err);
     }
 
-    await ctx.reply(t(lang, 'payment_received'));
+    await ctx.reply(t(lang, 'payment_received'), mainKeyboard(lang));
   });
 
   bot.action('paid_cancel', async (ctx) => {
     await ctx.answerCbQuery();
     const lang = ctx.from ? await getUserLang(BigInt(ctx.from.id)) : 'uz' as Lang;
-    await ctx.reply(t(lang, 'payment_cancelled'));
+    await ctx.reply(t(lang, 'payment_cancelled'), mainKeyboard(lang));
   });
 
   // Admin callbacks (admin messages stay in Uzbek, but user notifications use user's lang)
@@ -98,6 +99,7 @@ export function registerPaymentCallbacks(bot: Telegraf, whoop: WhoopService): vo
       await bot.telegram.sendMessage(
         targetUserId.toString(),
         t(lang, 'sub_activated', briefTime),
+        mainKeyboard(lang),
       );
 
       // Check if user missed today's brief — deliver immediately
@@ -134,6 +136,7 @@ export function registerPaymentCallbacks(bot: Telegraf, whoop: WhoopService): vo
       await bot.telegram.sendMessage(
         targetUserId.toString(),
         t(lang, 'sub_rejected'),
+        mainKeyboard(lang),
       );
     } catch (err) {
       console.error('[payment] reject notify failed:', err);
@@ -159,6 +162,7 @@ export async function handleAdminCommand(ctx: Context, bot: Telegraf, whoop: Who
       await bot.telegram.sendMessage(
         targetUserId.toString(),
         t(lang, 'sub_activated', briefTime),
+        mainKeyboard(lang),
       );
       await ctx.reply(`\u2705 Faollashtirildi \u2014 ${targetUserId}`);
     } catch (err) {
