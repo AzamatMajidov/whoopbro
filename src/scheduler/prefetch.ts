@@ -101,6 +101,7 @@ export async function attemptFetch(
       return 'FAILED';
     }
 
+    console.error(`[prefetch] attemptFetch error for user ${userId}:`, err);
     await db.dailySnapshot.update({
       where: { userId_date: { userId, date: dateObj } },
       data: { fetchStatus: 'FAILED' },

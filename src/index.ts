@@ -25,7 +25,7 @@ async function main() {
   const bot = createBot(whoop);
 
   // Start OAuth server (needs bot for sending Telegram messages)
-  startOAuthServer(bot);
+  startOAuthServer(bot, whoop);
   startScheduler(bot, whoop);
   console.log('⏰ Scheduler started');
 

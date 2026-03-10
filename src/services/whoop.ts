@@ -142,7 +142,10 @@ export class WhoopService {
 
     try {
       const records = await this.fetchPaginated('/v2/recovery', accessToken, 5);
-      const rec = records.find((r: any) => isForDate(r.created_at, date));
+      // Only use records with a finalized score (score_state === 'SCORED')
+      const rec = records.find(
+        (r: any) => isForDate(r.created_at, date) && r.score_state === 'SCORED',
+      );
       if (!rec) return null;
 
       return {
@@ -164,9 +167,10 @@ export class WhoopService {
     try {
       const records = await this.fetchPaginated('/v2/activity/sleep', accessToken, 5);
 
-      // Find non-nap sleep for the requested date
+      // Find non-nap, completed sleep for the requested date
+      // Skip ongoing sleep sessions (end === null) — data is not finalized yet
       const sleepRecords = records.filter(
-        (r: any) => !r.nap && isForDate(r.start, date),
+        (r: any) => !r.nap && r.end != null && isForDate(r.start, date),
       );
       if (!sleepRecords.length) return null;
 
@@ -265,6 +269,31 @@ export class WhoopService {
     const start = d.toISOString();
     const end = new Date(d.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString();
     return { start, end };
+  }
+
+  async fetchWorkoutById(
+    userId: bigint,
+    workoutId: string,
+  ): Promise<{ strain: number; sport: string; startTime: Date; endTime: Date } | null> {
+    const accessToken = await this.getValidToken(userId);
+
+    try {
+      const response = await this.api.get(`/v1/activity/workout/${workoutId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      const w = response.data;
+      return {
+        strain: w.score?.strain ?? 0,
+        sport: w.sport_id?.toString() ?? 'unknown',
+        startTime: new Date(w.start),
+        endTime: new Date(w.end),
+      };
+    } catch (err: any) {
+      if (err?.response?.status === 401) throw new WhoopTokenExpiredError();
+      if (err?.response?.status === 404) return null;
+      return null;
+    }
   }
 
   async fetchDayData(userId: bigint, date: string): Promise<DayData> {

@@ -49,6 +49,7 @@ export async function startBot(bot: Telegraf): Promise<void> {
       webhook: {
         domain: config.WHOOP_REDIRECT_URI.replace('/whoop/callback', ''),
         path: '/bot',
+        port: 3000,
       },
     });
     console.log('🤖 Bot started (webhook mode)');

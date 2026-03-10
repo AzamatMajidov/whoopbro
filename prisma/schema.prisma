@@ -78,6 +78,11 @@ model DailySnapshot {
   strainScore     Float?
   calories        Int?
 
+  // Workout (webhook-driven)
+  latestWorkoutTime  DateTime?
+  workoutStrain      Float?
+  latestWorkoutSport String?
+
   // On-demand query tracking
   onDemandCount   Int       @default(0)
 
@@ -94,4 +99,12 @@ model DailySnapshot {
 
   @@id([userId, date])
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebhookEvent {
+  traceId      String   @id
+  type         String
+  whoopUserId  String
+  resourceId   String
+  processedAt  DateTime @default(now())
 }
