@@ -122,7 +122,7 @@ async function handleWorkoutUpdated(
 
     const message =
       lang === 'uz'
-        ? `⚠️ Kechqurun eslatma: bugun kech vaqtda ogir trening qildingiz (strain: ${strainStr}). Ertangi recovery past bolishi mumkin. Imkon bolsa 23:00 gacha uxlashga harakat qiling. 💤`
+        ? `⚠️ Kechqurun eslatma: bugun kech vaqtda og'ir mashg'ulot qildingiz (strain: ${strainStr}). Ertangi recovery past bolishi mumkin. Imkon bolsa 23:00 gacha uxlashga harakat qiling. 💤`
         : `⚠️ Вечернее напоминание: сегодня поздняя тяжёлая тренировка (strain: ${strainStr}). Восстановление завтра может быть низким. Постарайтесь лечь спать до 23:00. 💤`;
 
     try {

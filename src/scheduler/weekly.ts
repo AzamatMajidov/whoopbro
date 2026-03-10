@@ -40,7 +40,7 @@ function formatSleepCell(minutes: number | null): string {
 function formatActivePattern(pattern: UserPattern, lang: Lang): string {
   const descriptions: Record<string, Record<Lang, string>> = {
     evening_strain_hrv_drop: {
-      uz: `Kechki og'ir treningdan keyin HRV pasayadi (${pattern.occurrences} marta)`,
+      uz: `Kechki og'ir mashg'ulotdan keyin HRV pasayadi (${pattern.occurrences} marta)`,
       ru: `После поздней тяжёлой тренировки HRV падает (${pattern.occurrences} раза)`,
     },
     high_strain_low_recovery: {

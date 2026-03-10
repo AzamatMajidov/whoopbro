@@ -91,7 +91,7 @@ const PATTERNS: PatternDefinition[] = [
     }),
     message: (occurrences, lang) => lang === 'ru'
       ? `🌙 Замечен паттерн: ${occurrences} раза за месяц — поздняя тяжёлая тренировка -> HRV на следующий день падает. Старайтесь заканчивать тренировки до 18:00.`
-      : `🌙 Qiziq pattern topildi: so'nggi oyda ${occurrences} marta kechki og'ir trening -> ertangi HRV pasaygan. Kechki mashqlarni 18:00 gacha tugatishga harakat qiling.`,
+      : `🌙 Qiziq pattern topildi: so'nggi oyda ${occurrences} marta kechki og'ir mashg'ulot -> ertangi HRV pasaygan. Kechki mashg'ulotlarni 18:00 gacha tugatishga harakat qiling.`,
   },
   {
     type: 'high_strain_low_recovery',

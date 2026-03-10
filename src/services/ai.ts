@@ -280,7 +280,7 @@ function buildAnomalyFlags(today: DailySnapshot, history: DailySnapshot[]): stri
     const [hStr, mStr] = tashkentHour.split(':');
     const hour = parseInt(hStr, 10);
     if (hour >= 19) {
-      flags.push(`Kechki trening soat ${hStr}:${mStr}da`);
+      flags.push(`Kechki mashg'ulot soat ${hStr}:${mStr}da`);
     }
   }
 
