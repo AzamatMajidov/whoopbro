@@ -5,6 +5,8 @@ import { runStaleFallback } from './prefetch';
 import { checkAndDeliverBriefs } from './deliver';
 import { sendWeeklySummaries } from './weekly';
 import { startMaintenanceCron } from './maintenance';
+import { registerPatternCron } from './patterns';
+import { db } from '../db/client';
 
 const TZ = 'Asia/Tashkent';
 
@@ -23,6 +25,9 @@ export function startScheduler(bot: Telegraf, whoop: WhoopService): void {
 
   // Sunday 21:00 Tashkent — weekly summary
   cron.schedule('0 21 * * 0', () => safeRun('weekly', () => sendWeeklySummaries(bot)), { timezone: TZ });
+
+  // 05:00 UTC (10:00 Tashkent) — pattern detection
+  registerPatternCron(bot, db);
 
   // Maintenance: trial warnings, expiry reminders
   startMaintenanceCron(bot);
