@@ -47,6 +47,7 @@ function isForDate(isoTimestamp: string, date: string): boolean {
 
 export class WhoopService {
   private api: AxiosInstance;
+  private refreshLocks = new Map<string, Promise<string>>();
 
   constructor(private db: PrismaClient) {
     this.api = axios.create({
@@ -63,7 +64,13 @@ export class WhoopService {
 
     // Refresh if expires within 5 minutes
     if (token.expiresAt < new Date(Date.now() + 5 * 60 * 1000)) {
-      return this.refreshToken(userId);
+      // Serialize refresh per user — prevent concurrent refresh race condition
+      const key = userId.toString();
+      const existing = this.refreshLocks.get(key);
+      if (existing) return existing;
+      const promise = this.refreshToken(userId).finally(() => this.refreshLocks.delete(key));
+      this.refreshLocks.set(key, promise);
+      return promise;
     }
 
     return decrypt(token.accessToken);
