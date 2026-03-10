@@ -87,6 +87,7 @@ export function createOAuthRouter(bot: Telegraf): Router {
       );
 
       const { access_token, refresh_token, expires_in, user_id } = tokenResponse.data;
+      console.log('[oauth] token response keys:', Object.keys(tokenResponse.data), '| user_id:', user_id);
 
       // Store encrypted tokens
       await db.whoopToken.upsert({
