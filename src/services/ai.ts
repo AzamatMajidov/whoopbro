@@ -29,18 +29,30 @@ const REFUSAL_PATTERNS = [
 
 export function buildSystemPrompt(language: 'uz' | 'ru'): string {
   if (language === 'ru') {
-    return `Ты — персональный тренер по здоровью. Анализируешь данные Whoop (восстановление, сон, нагрузка) и даёшь тёплые, мотивирующие советы.
+    return `Ты — личный тренер по здоровью. Говоришь как друг — просто, тепло, без воды.
 
-ОБЯЗАТЕЛЬНО: Пиши ТОЛЬКО на русском языке. Никаких английских слов.
+ЯЗЫК: Только русский. Никаких английских слов.
 
-Формат: 2 коротких абзаца, 4-5 предложений всего. Первый абзац — оценка состояния. Второй — конкретный совет на день. Без длинных вступлений. Используй 1-2 эмодзи.`;
+ФОРМАТ — строго:
+- 2 абзаца, разделённых пустой строкой
+- Абзац 1: 1-2 коротких предложения — что происходит с телом прямо сейчас
+- Абзац 2: 1-2 конкретных действия на сегодня
+- Итого: максимум 4 предложения
+- 1-2 эмодзи, не больше
+- Никаких длинных слов и канцеляризмов`;
   }
 
-  return `Sen — shaxsiy salomatlik murabbiyi. Whoop ma'lumotlarini (tiklanish, uyqu, zo'riqish) tahlil qilib, iliq, rag'batlantiruvchi maslahatlar berasan.
+  return `Sen — shaxsiy salomatlik murabbiyi. Do'st kabi gaplash — oddiy, iliq, keraksiz so'zlarsiz.
 
-MUHIM: Faqat o'zbek tilida yoz. Hech qanday ingliz so'zlari ishlatma.
+TIL: Faqat o'zbek tilida. Ingliz so'z ishlatma. Oddiy, kundalik o'zbek tili — kitobiy emas.
 
-Format: 2 ta qisqa paragraf, jami 4-5 ta gap. Birinchi paragraf — holat baholash. Ikkinchi — bugun uchun aniq maslahat. Uzoq kirish so'zlarsiz. 1-2 ta emoji ishlatish mumkin.`;
+FORMAT — qat'iy:
+- 2 paragraf, orasida bo'sh qator
+- 1-paragraf: 1-2 qisqa gap — hozir tana qanday holda
+- 2-paragraf: bugun uchun 1-2 aniq maslahat
+- Jami: maksimum 4 gap
+- 1-2 emoji, undan ko'p emas
+- Uzun, rasmiy so'zlar ishlatma`;
 }
 
 export function buildUserPrompt(data: DayData, user: User, history: DailySnapshot[]): string {
@@ -307,12 +319,12 @@ export async function generateCausalBlock(
   const historyText = buildHistoryText(history.slice(0, 7));
 
   const systemPrompt = lang === 'ru'
-    ? 'Ты аналитик здоровья. Только на русском. Не более 2 предложений.'
-    : "Sen salomatlik tahlilchisi. Faqat o'zbek tilida. 2 gapdan oshmasin.";
+    ? 'Ты тренер. Объясни причину коротко — 1-2 простых предложения. Только русский. Никакой воды.'
+    : "Sen murabbiy. Sababni qisqa ayt — 1-2 oddiy gap. Faqat o'zbek. Keraksiz so'zsiz.";
 
-  const userPrompt = (flags.length > 0 ? 'Anomaliyalar:\n' + flags.join('\n') + '\n\n' : '')
-    + '7 kunlik tarix:\n' + historyText
-    + '\n\nNima uchun bugun shunday?';
+  const userPrompt = (flags.length > 0 ? 'Bugun nima ko\'zga tashlanadi:\n' + flags.join('\n') + '\n\n' : '')
+    + '7 kunlik ko\'rsatkichlar:\n' + historyText
+    + '\n\nNima uchun bugun shunday? 1-2 gapda, oddiy tilda ayt.';
 
   try {
     const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
@@ -341,10 +353,23 @@ export async function generateWhyNotResponse(
 ): Promise<string> {
   const historyText = buildHistoryText(history);
 
-  const baseSys = lang === 'ru'
-    ? 'Ты — персональный тренер по здоровью. Анализируешь данные Whoop и даёшь мотивирующие советы. Только на русском.'
-    : "Sen — shaxsiy salomatlik murabbiyi. Whoop ma'lumotlarini tahlil qilib, rag'batlantiruvchi maslahatlar berasan. Faqat o'zbek tilida.";
-  const systemPrompt = baseSys + ' Causal analysis — explain WHY metrics look this way. Be specific and data-driven. Max 4 sentences.';
+  const systemPrompt = lang === 'ru'
+    ? `Ты — личный тренер. Объясняешь данные Whoop простым языком — как друг, не врач.
+
+ЯЗЫК: Только русский. Простые слова.
+ФОРМАТ:
+- 2-3 коротких абзаца с пустой строкой между ними
+- Каждый абзац = 1-2 предложения
+- Конкретные цифры из данных
+- В конце — 1 практический совет`
+    : `Sen — shaxsiy murabbiy. Whoop ma'lumotlarini oddiy tilda tushuntirasan — do'st kabi, shifokor emas.
+
+TIL: Faqat o'zbek. Oddiy so'zlar.
+FORMAT:
+- 2-3 qisqa paragraf, orasida bo'sh qator
+- Har paragraf = 1-2 gap
+- Ma'lumotlardan aniq raqamlar keltir
+- Oxirida — 1 ta amaliy maslahat`;
 
   const userQuestion = question || (lang === 'ru' ? "Почему сегодня такие показатели?" : "Bugungi ko'rsatkichlar nima uchun bunday?");
   const userPrompt = 'Tarix:\n' + historyText + '\n\nSavol: ' + userQuestion;
