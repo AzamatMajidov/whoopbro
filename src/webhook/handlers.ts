@@ -5,7 +5,7 @@ import { snapshotFromDayData } from '../scheduler/prefetch';
 import { deliverBrief } from '../scheduler/deliver';
 
 interface WebhookPayload {
-  user_id: string;
+  user_id: number | string;
   id: string;
   type: string;
   trace_id: string;
@@ -139,7 +139,8 @@ export async function handleWebhookEvent(
   bot: Telegraf,
   whoop: WhoopService,
 ): Promise<void> {
-  const { user_id, id, type, trace_id } = payload;
+  const { id, type, trace_id } = payload;
+  const whoopUserIdStr = String(payload.user_id); // Whoop sends user_id as integer
 
   // Deduplication check
   const existing = await db.webhookEvent.findUnique({ where: { traceId: trace_id } });
@@ -153,17 +154,17 @@ export async function handleWebhookEvent(
     data: {
       traceId: trace_id,
       type,
-      whoopUserId: user_id,
+      whoopUserId: whoopUserIdStr,
       resourceId: id,
     },
   });
 
   switch (type) {
     case 'recovery.updated':
-      await handleRecoveryUpdated(user_id, id, bot, whoop);
+      await handleRecoveryUpdated(whoopUserIdStr, id, bot, whoop);
       break;
     case 'workout.updated':
-      await handleWorkoutUpdated(user_id, id, bot, whoop);
+      await handleWorkoutUpdated(whoopUserIdStr, id, bot, whoop);
       break;
     default:
       console.log(`[webhook] unhandled event type=${type}, trace_id=${trace_id}`);
