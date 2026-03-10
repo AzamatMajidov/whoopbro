@@ -619,6 +619,154 @@
 
 ---
 
+---
+
+## 🔔 Week 5 — Webhook-Driven Delivery
+
+### T26 — Whoop Webhook Integration
+**Goal:** Replace polling with event-driven delivery. Whoop notifies us the moment recovery is scored → instant brief, zero stale data.
+
+**Why:**
+Current polling (05:30 sweep + 8 retries every 30min) has up to 30min latency and no awareness of when the user actually woke up. Whoop fires a `recovery.updated` webhook ~1-2 min after scoring, which is the earliest possible moment we can have accurate data.
+
+---
+
+**Step 1 — Whoop Developer Dashboard**
+1. Go to `developer.whoop.com` → your app → Webhooks tab
+2. Add webhook URL: `https://whoopbro.uz/webhook/whoop`
+3. Subscribe to events: `recovery.updated`, `sleep.updated`
+4. Save the **webhook secret** (used for HMAC signature verification) → add to `.env` as `WHOOP_WEBHOOK_SECRET`
+
+---
+
+**Step 2 — Webhook Route (`src/oauth/server.ts`)**
+
+Add `POST /webhook/whoop` route to the existing Express server:
+
+```ts
+app.post('/webhook/whoop', express.raw({ type: 'application/json' }), async (req, res) => {
+  // 1. Verify HMAC signature
+  const sig = req.headers['x-whoop-signature'] as string;
+  const expected = crypto
+    .createHmac('sha256', process.env.WHOOP_WEBHOOK_SECRET!)
+    .update(req.body)
+    .digest('hex');
+  if (sig !== `sha256=${expected}`) return res.status(401).send('Invalid signature');
+
+  // 2. Parse payload
+  const event = JSON.parse(req.body.toString());
+  // event shape: { type: 'recovery.updated', userId: 'whoop_user_id', ... }
+
+  // 3. Handle event
+  if (event.type === 'recovery.updated' || event.type === 'sleep.updated') {
+    await handleWhoopEvent(event);
+  }
+
+  res.status(200).send('ok'); // Always 200 quickly, process async
+});
+```
+
+**Important:** respond `200` immediately before doing any work — Whoop retries if it doesn't get a fast response.
+
+---
+
+**Step 3 — Event Handler (`src/webhook/whoop.ts`)**
+
+```ts
+export async function handleWhoopEvent(event: WhoopWebhookEvent): Promise<void> {
+  // 1. Find our user by whoopUserId
+  const user = await db.user.findFirst({
+    where: { whoopUserId: event.userId, whoopConnected: true }
+  });
+  if (!user) return; // User disconnected or unknown
+
+  const today = getTashkentToday();
+  const dateObj = new Date(`${today}T00:00:00Z`);
+
+  // 2. Check if brief already delivered today
+  const existing = await db.dailySnapshot.findUnique({
+    where: { userId_date: { userId: user.id, date: dateObj } }
+  });
+  if (existing?.deliveredAt) return; // Already delivered, skip
+
+  // 3. Fetch fresh data from Whoop
+  const dayData = await whoop.fetchDayData(user.id, today);
+
+  // 4. Validate data is actually ready (our existing guards)
+  if (!dayData.woreDevice) return; // No device, let stale fallback handle it
+
+  // 5. Upsert snapshot
+  const snapshot = await db.dailySnapshot.upsert({ ... }); // same upsert as prefetch
+
+  // 6. Check if it's past briefTime — deliver now, or let the minute cron handle it
+  const nowTashkent = getCurrentTimeTashkent(); // HH:MM
+  if (nowTashkent >= user.briefTime) {
+    await deliverBrief(user.id, snapshot, bot, whoop);
+  }
+  // If before briefTime: snapshot is now READY in DB,
+  // the minute cron will deliver at exactly briefTime
+}
+```
+
+---
+
+**Step 4 — Dual-Mode: Webhook + Polling Fallback**
+
+Keep the existing cron scheduler running but make it skip users already `READY`:
+
+```ts
+// prefetch.ts — runPrefetchSweep already skips READY snapshots (upsert with empty update)
+// No change needed — polling is a natural fallback if webhook missed
+```
+
+The flow becomes:
+```
+Normal:   Whoop webhook → handleWhoopEvent → READY in DB → delivered at briefTime
+Fallback: Webhook missed → 06:00 retry picks it up → same result, just delayed
+```
+
+---
+
+**Step 5 — Deduplication Guard**
+
+Whoop can fire `recovery.updated` multiple times (score revisions). Guard against double delivery:
+
+```ts
+// Already in step 3: check existing?.deliveredAt before proceeding
+// Also: upsert snapshot with fetchStatus READY — idempotent, safe to call multiple times
+```
+
+---
+
+**Step 6 — Nginx Route**
+
+Add to nginx config (already planned in T19):
+```nginx
+location /webhook/whoop {
+  proxy_pass http://localhost:3001;
+}
+```
+
+---
+
+**Step 7 — `.env` additions**
+```
+WHOOP_WEBHOOK_SECRET=<from developer dashboard>
+```
+
+---
+
+**Testing:**
+1. Whoop dashboard has a "Send test event" button — use it to verify signature + handler
+2. Sleep → wake → check logs: webhook fires, data fetched, brief delivered within 2 min of scoring
+3. Simulate double-fire: send test event twice → second one skipped (deliveredAt set)
+
+---
+
+**Done when:** Brief arrives within 2 minutes of Whoop scoring recovery, with no polling involved for the happy path.
+
+---
+
 ## 📊 Progress Tracker
 
 | Week | Tasks | Status |
@@ -627,3 +775,4 @@
 | Week 2 | T7–T13 | ✅ Done (2026-03-07) |
 | Week 3 | T14–T18 | ✅ Done (2026-03-08) |
 | Week 4 | T19–T25 | ⬜ Not started |
+| Week 5 | T26 | ⬜ After VPS deploy |
