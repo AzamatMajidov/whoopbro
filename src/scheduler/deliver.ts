@@ -2,7 +2,7 @@ import { DailySnapshot } from '@prisma/client';
 import { Telegraf } from 'telegraf';
 import { db } from '../db/client';
 import { WhoopService } from '../services/whoop';
-import { generateBrief, AITimeoutError, AIRefusalError } from '../services/ai';
+import { generateBrief, generateCausalBlock, AITimeoutError, AIRefusalError } from '../services/ai';
 import {
   composeBrief,
   composeFallbackBrief,
@@ -102,6 +102,16 @@ export async function deliverBrief(
     take: 7,
   });
 
+  // Generate causal block if enough history
+  let causalBlock: string | null = null;
+  if (history.length >= 3) {
+    try {
+      causalBlock = await generateCausalBlock(snapshot, history, lang);
+    } catch {
+      // causalBlock stays null
+    }
+  }
+
   // Check access
   const access = await hasAccess(userId);
   if (!access) {
@@ -139,7 +149,7 @@ export async function deliverBrief(
   let message;
   try {
     const aiText = await generateBrief(dayData, user, history);
-    message = composeBrief(dayData, aiText, snapshot.isStale, lang);
+    message = composeBrief(dayData, aiText, snapshot.isStale, lang, causalBlock);
   } catch (err) {
     if (err instanceof AITimeoutError || err instanceof AIRefusalError) {
       message = composeFallbackBrief(dayData, snapshot.isStale, lang);

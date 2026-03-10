@@ -303,6 +303,146 @@ export class WhoopService {
     }
   }
 
+  /**
+   * Backfill historical snapshots for Phase 2 AI insights.
+   * Fetches bulk recovery + sleep records and upserts per-date snapshots.
+   * Fire-and-forget safe — logs errors per date, never throws.
+   */
+  async backfillHistory(userId: bigint, days = 30): Promise<void> {
+    const accessToken = await this.getValidToken(userId);
+
+    // Fetch bulk records (2 pages of 25 = up to 50 records each)
+    const [recoveryRecords, sleepRecords] = await Promise.all([
+      this.fetchPaginated('/v2/recovery', accessToken, 25).catch((err) => {
+        console.error('[backfill] recovery fetch failed:', err.message);
+        return [] as any[];
+      }),
+      this.fetchPaginated('/v2/activity/sleep', accessToken, 25).catch((err) => {
+        console.error('[backfill] sleep fetch failed:', err.message);
+        return [] as any[];
+      }),
+    ]);
+
+    // Build date list: today-1 to today-days
+    const dates: string[] = [];
+    const now = new Date();
+    for (let i = 1; i <= days; i++) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      dates.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' }));
+    }
+
+    // Check which dates already have READY/STALE snapshots
+    const existing = await this.db.dailySnapshot.findMany({
+      where: {
+        userId,
+        date: { in: dates.map((d) => new Date(`${d}T00:00:00Z`)) },
+        fetchStatus: { in: ['READY', 'STALE'] },
+      },
+      select: { date: true },
+    });
+    const existingDates = new Set(
+      existing.map((e) => e.date.toISOString().split('T')[0]),
+    );
+
+    for (const date of dates) {
+      if (existingDates.has(date)) continue;
+
+      try {
+        // Find matching recovery
+        const rec = recoveryRecords.find(
+          (r: any) => isForDate(r.created_at, date) && r.score_state === 'SCORED',
+        );
+        const recovery: WhoopRecovery | null = rec
+          ? {
+              recoveryScore: rec.score?.recovery_score ?? null,
+              hrv: rec.score?.hrv_rmssd_milli ?? null,
+              rhr: rec.score?.resting_heart_rate ?? null,
+              spo2: rec.score?.spo2_percentage ?? null,
+            }
+          : null;
+
+        // Find matching sleep (non-nap, completed, longest)
+        const sleepMatches = sleepRecords.filter(
+          (r: any) => !r.nap && r.end != null && isForDate(r.start, date),
+        );
+        let sleep: WhoopSleep | null = null;
+        if (sleepMatches.length) {
+          const best = sleepMatches.reduce((longest: any, current: any) => {
+            const l = longest?.score?.stage_summary?.total_in_bed_time_milli ?? 0;
+            const c = current?.score?.stage_summary?.total_in_bed_time_milli ?? 0;
+            return c > l ? current : longest;
+          }, sleepMatches[0]);
+          const stages = best.score?.stage_summary;
+          sleep = {
+            durationMinutes: stages?.total_in_bed_time_milli
+              ? Math.round(stages.total_in_bed_time_milli / 60000)
+              : null,
+            performancePct: best.score?.sleep_performance_percentage ?? null,
+            efficiencyPct: best.score?.sleep_efficiency_percentage ?? null,
+            remMinutes: stages?.total_rem_sleep_time_milli
+              ? Math.round(stages.total_rem_sleep_time_milli / 60000)
+              : null,
+            deepMinutes: stages?.total_slow_wave_sleep_time_milli
+              ? Math.round(stages.total_slow_wave_sleep_time_milli / 60000)
+              : null,
+            lightMinutes: stages?.total_light_sleep_time_milli
+              ? Math.round(stages.total_light_sleep_time_milli / 60000)
+              : null,
+            respiratoryRate: best.score?.respiratory_rate ?? null,
+          };
+        }
+
+        // Skip if no data at all for this date
+        if (!recovery && !sleep) continue;
+
+        const woreDevice = sleep !== null || recovery !== null;
+        const dateObj = new Date(`${date}T00:00:00Z`);
+
+        await this.db.dailySnapshot.upsert({
+          where: { userId_date: { userId, date: dateObj } },
+          create: {
+            userId,
+            date: dateObj,
+            recoveryScore: recovery?.recoveryScore ?? null,
+            hrv: recovery?.hrv ?? null,
+            rhr: recovery?.rhr ?? null,
+            spo2: recovery?.spo2 ?? null,
+            sleepDuration: sleep?.durationMinutes ?? null,
+            sleepPerf: sleep?.performancePct ?? null,
+            sleepEfficiency: sleep?.efficiencyPct ?? null,
+            remMinutes: sleep?.remMinutes ?? null,
+            deepMinutes: sleep?.deepMinutes ?? null,
+            lightMinutes: sleep?.lightMinutes ?? null,
+            respiratoryRate: sleep?.respiratoryRate ?? null,
+            strainScore: null,
+            calories: null,
+            woreDevice,
+            fetchStatus: 'READY',
+            fetchedAt: new Date(),
+          },
+          update: {
+            recoveryScore: recovery?.recoveryScore ?? null,
+            hrv: recovery?.hrv ?? null,
+            rhr: recovery?.rhr ?? null,
+            spo2: recovery?.spo2 ?? null,
+            sleepDuration: sleep?.durationMinutes ?? null,
+            sleepPerf: sleep?.performancePct ?? null,
+            sleepEfficiency: sleep?.efficiencyPct ?? null,
+            remMinutes: sleep?.remMinutes ?? null,
+            deepMinutes: sleep?.deepMinutes ?? null,
+            lightMinutes: sleep?.lightMinutes ?? null,
+            respiratoryRate: sleep?.respiratoryRate ?? null,
+            woreDevice,
+            fetchStatus: 'READY',
+            fetchedAt: new Date(),
+          },
+        });
+      } catch (err: any) {
+        console.error(`[backfill] date ${date} failed:`, err.message);
+      }
+    }
+  }
+
   async fetchDayData(userId: bigint, date: string): Promise<DayData> {
     const [recovery, sleep, strain, workouts] = await Promise.all([
       this.fetchRecovery(userId, date),

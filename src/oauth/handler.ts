@@ -176,6 +176,14 @@ export function createOAuthRouter(bot: Telegraf): Router {
           });
 
           await deliverBrief(userId, snapshot, bot, whoop);
+
+          // Backfill historical data for Phase 2 AI insights
+          try {
+            await whoop.backfillHistory(userId, 30);
+            console.log(`[oauth] backfill complete for user ${userId}`);
+          } catch (backfillErr) {
+            console.error(`[oauth] backfill failed for user ${userId}:`, backfillErr);
+          }
         } catch (err) {
           console.error('[oauth] first brief delivery failed:', err);
           // Non-critical — user will get their brief tomorrow morning

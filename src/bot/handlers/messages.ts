@@ -4,7 +4,7 @@ import { DailySnapshot } from '@prisma/client';
 import { db } from '../../db/client';
 import { config } from '../../config';
 import { WhoopService } from '../../services/whoop';
-import { buildSystemPrompt, buildUserPrompt } from '../../services/ai';
+import { buildSystemPrompt, buildUserPrompt, generateWhyNotResponse } from '../../services/ai';
 import { composePaywall, composeFullDetail } from '../../services/brief';
 import { DayData } from '../../types/whoop';
 import { t, type Lang } from '../../i18n';
@@ -273,6 +273,48 @@ export async function handleCallbackQuery(ctx: Context, whoop: WhoopService): Pr
         await ctx.reply(prefix + detail, mainKeyboard(lang));
       } else {
         await ctx.reply(t(lang, 'query_no_data'), mainKeyboard(lang));
+      }
+      return;
+    }
+
+    if (data === 'whynot') {
+      const userId = BigInt(from.id);
+      const today = getTashkentToday();
+      const dateObj = new Date(`${today}T00:00:00Z`);
+      const lang = await getUserLang(userId);
+
+      const snapshot = await db.dailySnapshot.findUnique({
+        where: { userId_date: { userId, date: dateObj } },
+      });
+
+      const history = await db.dailySnapshot.findMany({
+        where: { userId, fetchStatus: { in: ['READY', 'STALE'] } },
+        orderBy: { date: 'desc' },
+        take: 14,
+      });
+
+      if (!snapshot || history.length < 2) {
+        await ctx.reply(
+          lang === 'ru'
+            ? 'Пока недостаточно данных для анализа.'
+            : "Tahlil uchun ma'lumot yetarli emas. Kamida 2-3 kun tarix kerak.",
+          mainKeyboard(lang),
+        );
+        return;
+      }
+
+      const thinkingMsg = await ctx.reply(lang === 'ru' ? '🔍 Анализирую...' : '🔍 Tahlil qilyapman...');
+
+      try {
+        const response = await generateWhyNotResponse(snapshot, history, '', lang);
+        try { await ctx.deleteMessage(thinkingMsg.message_id); } catch {}
+        await ctx.reply(response, mainKeyboard(lang));
+      } catch {
+        try { await ctx.deleteMessage(thinkingMsg.message_id); } catch {}
+        await ctx.reply(
+          lang === 'ru' ? 'Анализ не удался. Попробуйте позже.' : "Tahlil amalga oshmadi. Keyinroq urinib ko'ring.",
+          mainKeyboard(lang),
+        );
       }
       return;
     }

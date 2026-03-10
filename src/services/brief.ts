@@ -23,11 +23,12 @@ function defaultKeyboard(lang: Lang): InlineKeyboardButton[][] {
     [
       { text: t(lang, 'btn_detail'), callback_data: 'detail' },
       { text: t(lang, 'btn_ask'), callback_data: 'ask' },
+      { text: '🔍 Nima uchun?', callback_data: 'whynot' },
     ],
   ];
 }
 
-export function composeBrief(data: DayData, aiText: string, isStale: boolean, lang: Lang = 'uz'): TelegramMessage {
+export function composeBrief(data: DayData, aiText: string, isStale: boolean, lang: Lang = 'uz', causalBlock?: string | null): TelegramMessage {
   const lines: string[] = [];
 
   lines.push(`\uD83D\uDCC5 ${formatDate(data.date, lang)}`);
@@ -88,6 +89,11 @@ export function composeBrief(data: DayData, aiText: string, isStale: boolean, la
   // AI block
   lines.push('');
   lines.push(aiText);
+
+  if (causalBlock) {
+    lines.push('');
+    lines.push('🔍 *Sabab:* ' + causalBlock);
+  }
 
   lines.push('');
   lines.push(t(lang, 'brief_footer'));

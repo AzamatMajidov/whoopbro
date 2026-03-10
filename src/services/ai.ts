@@ -241,6 +241,133 @@ async function callGemini(
   return text.trim();
 }
 
+function buildAnomalyFlags(today: DailySnapshot, history: DailySnapshot[]): string[] {
+  const flags: string[] = [];
+
+  // HRV drop: today HRV < 7-day avg * 0.8
+  if (today.hrv !== null) {
+    const hrvVals = history.slice(0, 7).map(s => s.hrv).filter((v): v is number => v !== null);
+    if (hrvVals.length > 0) {
+      const avg = Math.round(hrvVals.reduce((a, b) => a + b, 0) / hrvVals.length);
+      if (today.hrv < avg * 0.8) {
+        flags.push(`HRV ${today.hrv}ms — bazadan 20%+ past (avg: ${avg}ms)`);
+      }
+    }
+  }
+
+  // High strain yesterday
+  if (history.length > 0 && history[0].strainScore !== null && history[0].strainScore > 15) {
+    flags.push(`Kechagi strain yuqori: ${history[0].strainScore}`);
+  }
+
+  // Short sleep
+  if (today.sleepDuration !== null && today.sleepDuration < 360) {
+    const h = Math.floor(today.sleepDuration / 60);
+    const m = today.sleepDuration % 60;
+    flags.push(`Uyqu qisqa: ${h}soat ${m}daqiqa`);
+  }
+
+  // Late workout
+  if (today.latestWorkoutTime) {
+    const tashkentHour = new Date(today.latestWorkoutTime).toLocaleString('en-US', {
+      timeZone: 'Asia/Tashkent',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const [hStr, mStr] = tashkentHour.split(':');
+    const hour = parseInt(hStr, 10);
+    if (hour >= 19) {
+      flags.push(`Kechki trening soat ${hStr}:${mStr}da`);
+    }
+  }
+
+  return flags;
+}
+
+function buildHistoryText(history: DailySnapshot[]): string {
+  return history.map(s => {
+    const date = s.date.toISOString().split('T')[0];
+    const h = s.sleepDuration !== null ? Math.floor(s.sleepDuration / 60) : '?';
+    const m = s.sleepDuration !== null ? s.sleepDuration % 60 : '?';
+    return `${date}: recovery=${s.recoveryScore ?? '?'}%, hrv=${s.hrv ?? '?'}ms, sleep=${h}h ${m}m, strain=${s.strainScore ?? '?'}`;
+  }).join('\n');
+}
+
+export async function generateCausalBlock(
+  today: DailySnapshot,
+  history: DailySnapshot[],
+  lang: 'uz' | 'ru',
+): Promise<string | null> {
+  if (history.length < 2) return null;
+
+  const flags = buildAnomalyFlags(today, history);
+  if (flags.length === 0 && today.recoveryScore !== null && today.recoveryScore >= 67) return null;
+
+  const historyText = buildHistoryText(history.slice(0, 7));
+
+  const systemPrompt = lang === 'ru'
+    ? 'Ты аналитик здоровья. Только на русском. Не более 2 предложений.'
+    : "Sen salomatlik tahlilchisi. Faqat o'zbek tilida. 2 gapdan oshmasin.";
+
+  const userPrompt = (flags.length > 0 ? 'Anomaliyalar:\n' + flags.join('\n') + '\n\n' : '')
+    + '7 kunlik tarix:\n' + historyText
+    + '\n\nNima uchun bugun shunday?';
+
+  try {
+    const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.1-flash-lite-preview',
+      systemInstruction: systemPrompt,
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('causal timeout')), 8_000);
+    });
+    const generatePromise = model.generateContent(userPrompt);
+    const result = await Promise.race([generatePromise, timeoutPromise]);
+    const text = result.response.text().trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function generateWhyNotResponse(
+  today: DailySnapshot,
+  history: DailySnapshot[],
+  question: string,
+  lang: 'uz' | 'ru',
+): Promise<string> {
+  const historyText = buildHistoryText(history);
+
+  const baseSys = lang === 'ru'
+    ? 'Ты — персональный тренер по здоровью. Анализируешь данные Whoop и даёшь мотивирующие советы. Только на русском.'
+    : "Sen — shaxsiy salomatlik murabbiyi. Whoop ma'lumotlarini tahlil qilib, rag'batlantiruvchi maslahatlar berasan. Faqat o'zbek tilida.";
+  const systemPrompt = baseSys + ' Causal analysis — explain WHY metrics look this way. Be specific and data-driven. Max 4 sentences.';
+
+  const userQuestion = question || (lang === 'ru' ? "Почему сегодня такие показатели?" : "Bugungi ko'rsatkichlar nima uchun bunday?");
+  const userPrompt = 'Tarix:\n' + historyText + '\n\nSavol: ' + userQuestion;
+
+  try {
+    const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.1-flash-lite-preview',
+      systemInstruction: systemPrompt,
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('whynot timeout')), 12_000);
+    });
+    const generatePromise = model.generateContent(userPrompt);
+    const result = await Promise.race([generatePromise, timeoutPromise]);
+    const text = result.response.text().trim();
+    return text || (lang === 'ru' ? 'Анализ не удался. Попробуйте позже.' : "Tahlil amalga oshmadi. Keyinroq urinib ko'ring.");
+  } catch {
+    return lang === 'ru' ? 'Анализ не удался. Попробуйте позже.' : "Tahlil amalga oshmadi. Keyinroq urinib ko'ring.";
+  }
+}
+
 export async function generateBrief(
   data: DayData,
   user: User,
