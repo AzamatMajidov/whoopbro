@@ -9,6 +9,9 @@ import { WhoopService } from '../services/whoop';
 export function startOAuthServer(bot: Telegraf, whoop: WhoopService): void {
   const app = express();
 
+  // Trust nginx reverse proxy (needed for correct IP in rate limiter)
+  app.set('trust proxy', 1);
+
   // Rate limit: 10 requests per minute per IP
   app.use(
     rateLimit({
