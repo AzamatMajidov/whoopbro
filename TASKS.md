@@ -774,5 +774,7 @@ WHOOP_WEBHOOK_SECRET=<from developer dashboard>
 | Week 1 | T1–T6 | ✅ Done (2026-03-07) |
 | Week 2 | T7–T13 | ✅ Done (2026-03-07) |
 | Week 3 | T14–T18 | ✅ Done (2026-03-08) |
-| Week 4 | T19–T25 | ⬜ Not started |
-| Week 5 | T26 | ⬜ After VPS deploy |
+| Week 4 | T19–T25 | ✅ Done (2026-03-09) — VPS live, nginx/HTTPS, systemd, webhook |
+| Week 5 | T26 | ✅ Done (2026-03-09) — Webhook-driven delivery live |
+| Phase 2 | P0+P1+P2 | ✅ Done (2026-03-10) — Backfill, Sabab block, Nima uchun?, Pattern detection, Enhanced weekly summary |
+| Phase 2 | Internal testing | 🔄 In progress — 4 friends invited (2026-03-10) |

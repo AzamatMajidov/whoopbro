@@ -26,11 +26,8 @@ Phase 2 — AI Insights & Causal Analysis (see PRD section 6b):
 - Start when ready
 
 ## Progress
-- ✅ Week 1 (T1–T6): Foundation, DB schema, OAuth, Express server, WhoopService
-- ✅ Week 2 (T7–T13): AI brief, scheduler, delivery, on-demand queries, weekly summary
-- ✅ Week 3 (T14–T18): Subscriptions, trial warnings, p2p payment flow, admin panel, settings
-- ⬜ Week 4 (T19–T25): VPS/HTTPS/nginx, systemd, startup recovery, admin alerts, E2E test, launch
-- ⬜ Week 5 (T26): Whoop webhook integration (post-launch)
+- ✅ Weeks 1–5: Foundation → AI brief → Monetization → VPS/deploy → Webhook delivery
+- ✅ Phase 2 P0+P1+P2: All shipped 2026-03-10
 
 ## Key Decisions
 - Price: 50,000 UZS/month (~$4) · 14-day free trial
@@ -48,4 +45,4 @@ Phase 2 — AI Insights & Causal Analysis (see PRD section 6b):
 - Admin Telegram ID: 45118778
 
 ## Last Updated
-2026-03-08
+2026-03-10
