@@ -17,15 +17,13 @@ Node.js 22 + TypeScript + Telegraf + Prisma + PostgreSQL + Gemini 2.0 Flash Lite
 - **Domain:** whoopbro.uz (registered at ahost.uz, DNS activates ~Tue Mar 10)
 
 ## Current Task
-Webhook integration (T26) — event-driven pipeline replacing cron-based prefetch.
+Webhook integration ✅ — shipped and tested in production.
 
 ## Next Action
-Implement webhook infrastructure:
-1. Prisma schema migration — add `WebhookEvent` model + 3 fields on `DailySnapshot`
-2. `src/webhook/router.ts` — POST /webhook/whoop, HMAC-SHA256 signature validation, 200 OK fast
-3. `src/webhook/handlers.ts` — recovery.updated → deliverBrief, workout.updated → evening warning
-4. Remove prefetch sweep + retry loops from scheduler (keep 10:00 stale fallback)
-5. Commit, push, deploy to VPS + restart systemd
+Phase 2 — AI Insights & Causal Analysis (see PRD section 6b):
+- P0: historical data storage schema already exists (dailySnapshot)
+- P1: causal daily report block + "Nima uchun?" command
+- Start when ready
 
 ## Progress
 - ✅ Week 1 (T1–T6): Foundation, DB schema, OAuth, Express server, WhoopService
