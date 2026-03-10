@@ -7,7 +7,7 @@ active — live on production ✅
 Whoop wearable → daily AI health coaching in Uzbek/Russian via Telegram bot.
 
 ## Stack
-Node.js 22 + TypeScript + Telegraf + Prisma + PostgreSQL + Gemini 2.0 Flash Lite
+Node.js 22 + TypeScript + Telegraf + Prisma + PostgreSQL + gemini-3.1-flash-lite-preview (fallback: gemini-2.5-flash)
 
 ## Repo & Deploy
 - **Repo:** github.com/AzamatMajidov/whoopbro
