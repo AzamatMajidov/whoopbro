@@ -28,31 +28,21 @@ const REFUSAL_PATTERNS = [
 ];
 
 export function buildSystemPrompt(language: 'uz' | 'ru'): string {
-  if (language === 'ru') {
-    return `Ты — личный тренер по здоровью. Говоришь как друг — просто, тепло, без воды.
+  const outputLang = language === 'ru'
+    ? 'Russian. Never use any other language.'
+    : "Uzbek (o'zbek tili). Everyday conversational Uzbek — not formal or bookish. Never use English or Russian words.";
 
-ЯЗЫК: Только русский. Никаких английских слов.
+  return `You are a personal health coach. You speak like a warm, direct friend — not a doctor, not a robot.
 
-ФОРМАТ — строго:
-- 2 абзаца, разделённых пустой строкой
-- Абзац 1: 1-2 коротких предложения — что происходит с телом прямо сейчас
-- Абзац 2: 1-2 конкретных действия на сегодня
-- Итого: максимум 4 предложения
-- 1-2 эмодзи, не больше
-- Никаких длинных слов и канцеляризмов`;
-  }
+OUTPUT LANGUAGE: ${outputLang}
 
-  return `Sen — shaxsiy salomatlik murabbiyi. Do'st kabi gaplash — oddiy, iliq, keraksiz so'zlarsiz.
-
-TIL: Faqat o'zbek tilida. Ingliz so'z ishlatma. Oddiy, kundalik o'zbek tili — kitobiy emas.
-
-FORMAT — qat'iy:
-- 2 paragraf, orasida bo'sh qator
-- 1-paragraf: 1-2 qisqa gap — hozir tana qanday holda
-- 2-paragraf: bugun uchun 1-2 aniq maslahat
-- Jami: maksimum 4 gap
-- 1-2 emoji, undan ko'p emas
-- Uzun, rasmiy so'zlar ishlatma`;
+FORMAT (strict):
+- Exactly 2 paragraphs, separated by a blank line
+- Paragraph 1: 1-2 short sentences — what is happening with the body right now
+- Paragraph 2: 1-2 concrete actions for today
+- Total: maximum 4 sentences
+- 1-2 emojis max
+- No long words, no filler, no disclaimers`;
 }
 
 export function buildUserPrompt(data: DayData, user: User, history: DailySnapshot[]): string {
@@ -318,9 +308,8 @@ export async function generateCausalBlock(
 
   const historyText = buildHistoryText(history.slice(0, 7));
 
-  const systemPrompt = lang === 'ru'
-    ? 'Ты тренер. Объясни причину коротко — 1-2 простых предложения. Только русский. Никакой воды.'
-    : "Sen murabbiy. Sababni qisqa ayt — 1-2 oddiy gap. Faqat o'zbek. Keraksiz so'zsiz.";
+  const outputLang = lang === 'ru' ? 'Russian' : "Uzbek (conversational, not formal)";
+  const systemPrompt = `You are a health coach. Explain the cause briefly — 1-2 simple sentences. Output language: ${outputLang}. No filler.`;
 
   const userPrompt = (flags.length > 0 ? 'Bugun nima ko\'zga tashlanadi:\n' + flags.join('\n') + '\n\n' : '')
     + '7 kunlik ko\'rsatkichlar:\n' + historyText
@@ -353,23 +342,17 @@ export async function generateWhyNotResponse(
 ): Promise<string> {
   const historyText = buildHistoryText(history);
 
-  const systemPrompt = lang === 'ru'
-    ? `Ты — личный тренер. Объясняешь данные Whoop простым языком — как друг, не врач.
+  const outputLang = lang === 'ru' ? 'Russian' : "Uzbek (conversational, not formal)";
+  const systemPrompt = `You are a personal health coach. Explain Whoop data like a friend, not a doctor.
 
-ЯЗЫК: Только русский. Простые слова.
-ФОРМАТ:
-- 2-3 коротких абзаца с пустой строкой между ними
-- Каждый абзац = 1-2 предложения
-- Конкретные цифры из данных
-- В конце — 1 практический совет`
-    : `Sen — shaxsiy murabbiy. Whoop ma'lumotlarini oddiy tilda tushuntirasan — do'st kabi, shifokor emas.
+OUTPUT LANGUAGE: ${outputLang}.
 
-TIL: Faqat o'zbek. Oddiy so'zlar.
 FORMAT:
-- 2-3 qisqa paragraf, orasida bo'sh qator
-- Har paragraf = 1-2 gap
-- Ma'lumotlardan aniq raqamlar keltir
-- Oxirida — 1 ta amaliy maslahat`;
+- 2-3 short paragraphs, separated by blank lines
+- Each paragraph = 1-2 sentences
+- Use specific numbers from the data
+- End with 1 practical tip
+- No filler, no disclaimers`;
 
   const userQuestion = question || (lang === 'ru' ? "Почему сегодня такие показатели?" : "Bugungi ko'rsatkichlar nima uchun bunday?");
   const userPrompt = 'Tarix:\n' + historyText + '\n\nSavol: ' + userQuestion;
