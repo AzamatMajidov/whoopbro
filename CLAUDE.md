@@ -17,13 +17,11 @@ Node.js 22 + TypeScript + Telegraf + Prisma + PostgreSQL + Gemini 2.0 Flash Lite
 - **Domain:** whoopbro.uz (registered at ahost.uz, DNS activates ~Tue Mar 10)
 
 ## Current Task
-Webhook integration ✅ — shipped and tested in production.
+Phase 2 P0+P1 ✅ — shipped 2026-03-10.
 
 ## Next Action
-Phase 2 — AI Insights & Causal Analysis (see PRD section 6b):
-- P0: historical data storage schema already exists (dailySnapshot)
-- P1: causal daily report block + "Nima uchun?" command
-- Start when ready
+Phase 2 P2 — Pattern detection (7-day) + Enhanced weekly summary
+OR post launch announcement in Whoop UZ Telegram group (~19:00-20:00 GMT+5)
 
 ## Progress
 - ✅ Week 1 (T1–T6): Foundation, DB schema, OAuth, Express server, WhoopService

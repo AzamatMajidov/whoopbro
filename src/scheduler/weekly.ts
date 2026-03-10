@@ -132,30 +132,61 @@ export async function generateAndSendWeeklySummary(userId: bigint, bot: Telegraf
   const bestDateStr = bestDay ? bestDay.date.toISOString().split('T')[0] : '';
   const worstDateStr = worstDay ? worstDay.date.toISOString().split('T')[0] : '';
 
-  // Build Gemini prompt
-  const promptLines = [
-    `${l.ai_prompt_template}:`,
-    `${l.avg_recovery}: ${avgRecovery ?? 'N/A'}%`,
-    `${l.avg_hrv}: ${avgHrv ?? 'N/A'}ms`,
-    `${l.avg_sleep}: ${avgSleepMin ?? 'N/A'} min`,
-    `${l.sleep_consistency}: ${consistency}`,
-    `${l.weekly_strain}: ${totalStrain ?? 'N/A'}`,
-    `${l.best_day}: ${bestDateStr} (${bestDay?.recoveryScore ?? 'N/A'}%)`,
-    `${l.worst_day}: ${worstDateStr} (${worstDay?.recoveryScore ?? 'N/A'}%)`,
-  ];
+  // Load active patterns for this user
+  const activePatterns = await db.userPattern.findMany({
+    where: { userId, occurrences: { gte: 3 } },
+  });
+
+  // Trend: compare first half vs second half of the week
+  const sorted = [...snapshots].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const half = Math.floor(sorted.length / 2);
+  const firstHalf = sorted.slice(0, half);
+  const secondHalf = sorted.slice(half);
+  const avgR1 = firstHalf.map(s => s.recoveryScore).filter((v): v is number => v !== null);
+  const avgR2 = secondHalf.map(s => s.recoveryScore).filter((v): v is number => v !== null);
+  const trend = avgR1.length && avgR2.length
+    ? (avgR2.reduce((a, b) => a + b, 0) / avgR2.length) - (avgR1.reduce((a, b) => a + b, 0) / avgR1.length)
+    : 0;
+  const trendLabel = trend > 5 ? (lang === 'ru' ? '📈 улучшается' : '📈 yaxshilanmoqda')
+    : trend < -5 ? (lang === 'ru' ? '📉 ухудшается' : '📉 yomonlashmoqda')
+    : (lang === 'ru' ? '➡️ стабильно' : '➡️ barqaror');
+
+  // Build rich narrative prompt
+  const outputLang = lang === 'ru' ? 'Russian' : "Uzbek (conversational, not formal)";
+  const dayRows = sorted.map(s => {
+    const d = s.date.toISOString().split('T')[0];
+    return `${d}: recovery=${s.recoveryScore ?? '?'}%, hrv=${s.hrv ?? '?'}ms, sleep=${s.sleepDuration ? Math.round(s.sleepDuration / 60 * 10) / 10 + 'h' : '?'}, strain=${s.strainScore ?? '?'}`;
+  }).join('\n');
+
+  const patternContext = activePatterns.length > 0
+    ? 'Active patterns: ' + activePatterns.map(p => `${p.patternType} (${p.occurrences}x)`).join(', ')
+    : '';
+
+  const systemPrompt = `You are a personal health coach writing a weekly narrative summary. Speak like a friend, not a doctor.
+OUTPUT LANGUAGE: ${outputLang}.
+FORMAT (strict):
+- 4 short paragraphs, each separated by a blank line
+- Para 1: Best day of the week + why (1-2 sentences)
+- Para 2: Hardest day + what likely caused it (1-2 sentences)
+- Para 3: One key pattern or trend you noticed this week (1-2 sentences)
+- Para 4: One specific focus for next week — concrete, actionable (1-2 sentences)
+- No bullet points, no headers, no emojis in text
+- Max 8 sentences total`;
+
+  const userPrompt = `7-day data:\n${dayRows}\n\nRecovery trend: ${trendLabel}\n${patternContext ? patternContext + '\n' : ''}\nWrite the weekly narrative summary.`;
 
   let aiInsight = '';
   try {
     const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: 'gemini-3.1-flash-lite-preview',
-      systemInstruction: l.ai_system,
+      systemInstruction: systemPrompt,
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error('AI timeout')), 15_000);
     });
-    const generatePromise = model.generateContent(promptLines.join('\n'));
+    const generatePromise = model.generateContent(userPrompt);
     const result = await Promise.race([generatePromise, timeoutPromise]);
     aiInsight = result.response.text().trim();
   } catch {
@@ -171,13 +202,14 @@ export async function generateAndSendWeeklySummary(userId: bigint, bot: Telegraf
   const avgSleepRemainder = avgSleepMin !== null ? avgSleepMin % 60 : 0;
 
   const lines: string[] = [];
-  lines.push(`${l.weekly_title} \u2014 ${startDate} \u2014 ${endDate}`);
+  lines.push(`📊 ${l.weekly_title} — ${startDate} — ${endDate}`);
   lines.push('');
-  if (avgRecovery !== null) lines.push(`${recoveryEmoji(avgRecovery)} ${l.avg_recovery}: ${avgRecovery}%`);
-  if (avgHrv !== null) lines.push(`\uD83D\uDC93 ${l.avg_hrv}: ${avgHrv}ms`);
-  if (avgSleepMin !== null) lines.push(`\uD83D\uDE34 ${l.avg_sleep}: ${avgSleepHours}${l.sleep_short_h} ${avgSleepRemainder}${l.sleep_short_m}`);
-  lines.push(`\uD83D\uDCC5 ${l.sleep_consistency}: ${consistency}`);
-  if (totalStrain !== null) lines.push(`\uD83D\uDD25 ${l.weekly_strain}: ${totalStrain}`);
+  if (avgRecovery !== null) lines.push(`${recoveryEmoji(avgRecovery)} ${l.avg_recovery}: ${avgRecovery}% ${trendLabel}`);
+  if (avgHrv !== null) lines.push(`💓 ${l.avg_hrv}: ${avgHrv}ms`);
+  if (avgSleepMin !== null) lines.push(`😴 ${l.avg_sleep}: ${avgSleepHours}${l.sleep_short_h} ${avgSleepRemainder}${l.sleep_short_m} · ${l.sleep_consistency}: ${consistency}`);
+  if (totalStrain !== null) lines.push(`🔥 ${l.weekly_strain}: ${totalStrain}`);
+  lines.push('');
+  lines.push('─'.repeat(20));
   lines.push('');
   lines.push(aiInsight);
   lines.push('');
