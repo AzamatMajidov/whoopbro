@@ -288,7 +288,7 @@ export async function handleCallbackQuery(ctx: Context, whoop: WhoopService): Pr
       });
 
       const history = await db.dailySnapshot.findMany({
-        where: { userId, fetchStatus: { in: ['READY', 'STALE'] } },
+        where: { userId, fetchStatus: { in: ['READY', 'STALE'] }, date: { lt: dateObj } },
         orderBy: { date: 'desc' },
         take: 14,
       });
@@ -305,17 +305,19 @@ export async function handleCallbackQuery(ctx: Context, whoop: WhoopService): Pr
 
       const thinkingMsg = await ctx.reply(lang === 'ru' ? '🔍 Анализирую...' : '🔍 Tahlil qilyapman...');
 
+      let response: string | null = null;
       try {
-        const response = await generateWhyNotResponse(snapshot, history, '', lang);
-        try { await ctx.deleteMessage(thinkingMsg.message_id); } catch {}
-        await ctx.reply(response, mainKeyboard(lang));
+        response = await generateWhyNotResponse(snapshot, history, '', lang);
       } catch {
+        // response stays null
+      } finally {
         try { await ctx.deleteMessage(thinkingMsg.message_id); } catch {}
-        await ctx.reply(
-          lang === 'ru' ? 'Анализ не удался. Попробуйте позже.' : "Tahlil amalga oshmadi. Keyinroq urinib ko'ring.",
-          mainKeyboard(lang),
-        );
       }
+
+      await ctx.reply(
+        response ?? (lang === 'ru' ? 'Анализ не удался. Попробуйте позже.' : "Tahlil amalga oshmadi. Keyinroq urinib ko'ring."),
+        mainKeyboard(lang),
+      );
       return;
     }
 

@@ -23,7 +23,7 @@ function defaultKeyboard(lang: Lang): InlineKeyboardButton[][] {
     [
       { text: t(lang, 'btn_detail'), callback_data: 'detail' },
       { text: t(lang, 'btn_ask'), callback_data: 'ask' },
-      { text: '🔍 Nima uchun?', callback_data: 'whynot' },
+      { text: t(lang, 'btn_whynot'), callback_data: 'whynot' },
     ],
   ];
 }

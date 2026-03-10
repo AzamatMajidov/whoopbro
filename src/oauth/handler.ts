@@ -179,7 +179,7 @@ export function createOAuthRouter(bot: Telegraf): Router {
 
           // Backfill historical data for Phase 2 AI insights
           try {
-            await whoop.backfillHistory(userId, 30);
+            whoop.backfillHistory(userId, 30);
             console.log(`[oauth] backfill complete for user ${userId}`);
           } catch (backfillErr) {
             console.error(`[oauth] backfill failed for user ${userId}:`, backfillErr);
