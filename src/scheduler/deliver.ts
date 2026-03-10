@@ -83,6 +83,7 @@ export async function deliverBrief(
   snapshot: DailySnapshot,
   bot: Telegraf,
   whoop: WhoopService,
+  fromWebhook = false,
 ): Promise<void> {
   const user = await db.user.findUniqueOrThrow({
     where: { id: userId },
@@ -147,20 +148,22 @@ export async function deliverBrief(
     }
   }
 
-  // Check if delivery is late (briefTime + 30min)
-  const now = new Date();
-  const [briefH, briefM] = user.briefTime.split(':').map(Number);
-  const briefTimeToday = new Date(
-    now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
-  );
-  briefTimeToday.setHours(briefH, briefM, 0, 0);
-  const lateThreshold = new Date(briefTimeToday.getTime() + 30 * 60 * 1000);
-  const nowTashkent = new Date(
-    now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
-  );
+  // Check if delivery is late (briefTime + 30min) — skip for webhook-triggered briefs
+  if (!fromWebhook) {
+    const now = new Date();
+    const [briefH, briefM] = user.briefTime.split(':').map(Number);
+    const briefTimeToday = new Date(
+      now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
+    );
+    briefTimeToday.setHours(briefH, briefM, 0, 0);
+    const lateThreshold = new Date(briefTimeToday.getTime() + 30 * 60 * 1000);
+    const nowTashkent = new Date(
+      now.toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }),
+    );
 
-  if (nowTashkent > lateThreshold) {
-    message.text = t(lang, 'late_notice') + '\n\n' + message.text;
+    if (nowTashkent > lateThreshold) {
+      message.text = t(lang, 'late_notice') + '\n\n' + message.text;
+    }
   }
 
   try {

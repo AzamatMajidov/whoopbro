@@ -63,7 +63,7 @@ async function handleRecoveryUpdated(
     where: { userId_date: { userId: user.id, date: dateObj } },
   });
 
-  await deliverBrief(user.id, snapshot, bot, whoop);
+  await deliverBrief(user.id, snapshot, bot, whoop, true);
   console.log(`[webhook] recovery.updated — brief delivered for user ${user.id}`);
 }
 
