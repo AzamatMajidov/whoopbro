@@ -86,8 +86,19 @@ export function createOAuthRouter(bot: Telegraf): Router {
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
 
-      const { access_token, refresh_token, expires_in, user_id } = tokenResponse.data;
-      console.log('[oauth] token response keys:', Object.keys(tokenResponse.data), '| user_id:', user_id);
+      const { access_token, refresh_token, expires_in } = tokenResponse.data;
+
+      // Whoop doesn't return user_id in token response — fetch from profile API
+      let whoopUserId: string | null = null;
+      try {
+        const profileResponse = await axios.get('https://api.prod.whoop.com/developer/v1/user/profile/basic', {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        whoopUserId = profileResponse.data?.user_id ? String(profileResponse.data.user_id) : null;
+        console.log('[oauth] fetched whoopUserId from profile:', whoopUserId);
+      } catch (err: any) {
+        console.error('[oauth] failed to fetch whoop user profile:', err.message);
+      }
 
       // Store encrypted tokens
       await db.whoopToken.upsert({
@@ -110,7 +121,7 @@ export function createOAuthRouter(bot: Telegraf): Router {
         where: { id: userId },
         data: {
           whoopConnected: true,
-          whoopUserId: user_id ? String(user_id) : null,
+          whoopUserId: whoopUserId,
         },
       });
 
