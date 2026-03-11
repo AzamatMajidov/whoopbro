@@ -354,8 +354,13 @@ FORMAT:
 - End with 1 practical tip
 - No filler, no disclaimers`;
 
+  const todayDate = today.date.toISOString().split('T')[0];
+  const todayH = today.sleepDuration !== null ? Math.floor(today.sleepDuration / 60) : '?';
+  const todayM = today.sleepDuration !== null ? today.sleepDuration % 60 : '?';
+  const todayLine = `${todayDate}: recovery=${today.recoveryScore ?? '?'}%, hrv=${today.hrv ?? '?'}ms, sleep=${todayH}h ${todayM}m, strain=${today.strainScore ?? '?'}`;
+
   const userQuestion = question || (lang === 'ru' ? "Почему сегодня такие показатели?" : "Bugungi ko'rsatkichlar nima uchun bunday?");
-  const userPrompt = 'Tarix:\n' + historyText + '\n\nSavol: ' + userQuestion;
+  const userPrompt = 'Bugun:\n' + todayLine + '\n\nTarix (oldingi kunlar):\n' + historyText + '\n\nSavol: ' + userQuestion;
 
   try {
     const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
